@@ -4,6 +4,7 @@ const Reservation = require("../models/Reservation");
 const Payment = require("../models/Payment");
 const Hotel = require("../models/Hotel");
 const OwnHotel = require("../models/OwnHotel");
+const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
 
@@ -14,7 +15,11 @@ router.use(requireBusiness);
 // 대시보드 통계
 router.get("/dashboard", async (req, res) => {
   try {
-    const businessId = req.user.id;
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
 
     // 오늘 날짜 범위
     const today = new Date();
@@ -23,17 +28,17 @@ router.get("/dashboard", async (req, res) => {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // 기본 통계
-    const hotelIds = await Hotel.find({ business: businessId }).distinct('_id');
+    const hotelIds = await Hotel.find({ business: business._id }).distinct('_id');
     
     const [totalHotels, totalOwnHotels, todayReservations, pendingReservations] = await Promise.all([
-      Hotel.countDocuments({ business: businessId }),
+      Hotel.countDocuments({ business: business._id }),
       OwnHotel.countDocuments({ hotel_id: { $in: hotelIds } }),
       Reservation.countDocuments({
-        business: businessId,
+        business: business._id,
         createdAt: { $gte: today }
       }),
       Reservation.countDocuments({
-        business: businessId,
+        business: business._id,
         status: 'pending'
       })
     ]);
@@ -45,7 +50,7 @@ router.get("/dashboard", async (req, res) => {
 
     // 예약과 결제를 조인하여 매출 계산
     const reservations = await Reservation.find({
-      business: businessId,
+      business: business._id,
       status: { $in: ['confirmed', 'completed'] },
       createdAt: { $gte: thisMonthStart }
     }).select('_id').lean();
@@ -64,7 +69,7 @@ router.get("/dashboard", async (req, res) => {
     const dailyReservations = await Reservation.aggregate([
       {
         $match: {
-          business: new require('mongoose').Types.ObjectId(businessId),
+          business: business._id,
           createdAt: { $gte: thisMonthStart }
         }
       },
@@ -97,7 +102,7 @@ router.get("/dashboard", async (req, res) => {
     const hotelStats = await Reservation.aggregate([
       {
         $match: {
-          business: new require('mongoose').Types.ObjectId(businessId),
+          business: business._id,
           createdAt: { $gte: thisMonthStart }
         }
       },
@@ -161,7 +166,12 @@ router.get("/dashboard", async (req, res) => {
 // 매출 통계 (기간별)
 router.get("/revenue", async (req, res) => {
   try {
-    const businessId = req.user.id;
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     const { startDate, endDate, groupBy = 'day' } = req.query;
 
     if (!startDate || !endDate) {
@@ -180,7 +190,7 @@ router.get("/revenue", async (req, res) => {
     }
 
     const reservations = await Reservation.find({
-      business: businessId,
+      business: business._id,
       status: { $in: ['confirmed', 'completed'] },
       createdAt: { $gte: start, $lte: end }
     }).select('_id createdAt').lean();

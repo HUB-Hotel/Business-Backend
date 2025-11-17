@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Facility = require("../models/Facility");
 const Hotel = require("../models/Hotel");
+const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
 const mongoose = require("mongoose");
@@ -19,10 +20,16 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "필수 필드가 누락되었습니다." });
     }
 
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     // 호텔 소유권 확인
     const hotel = await Hotel.findOne({
       _id: hotel_id,
-      business: req.user.id
+      business: business._id
     });
 
     if (!hotel) {

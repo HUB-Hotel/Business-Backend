@@ -1,6 +1,6 @@
 // middleware/auth.js
 const jwt = require("jsonwebtoken");
-const Business = require("../models/Business");
+const User = require("../models/User");
 
 exports.authenticateToken = async (req, res, next) => {
   let token = null;
@@ -20,18 +20,22 @@ exports.authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // 3️⃣ DB에서 사용자 조회 및 토큰 버전 검증
-    const business = await Business.findById(decoded.id).select('tokenVersion isActive');
+    const user = await User.findById(decoded.id).select('tokenVersion status role');
     
-    if (!business) {
+    if (!user) {
       return res.status(401).json({ message: '사용자를 찾을 수 없습니다.' });
     }
     
-    if (!business.isActive) {
+    if (user.status === "suspended") {
+      return res.status(403).json({ message: '계정이 정지되었습니다.' });
+    }
+    
+    if (user.status === "inactive") {
       return res.status(403).json({ message: '계정이 비활성화되었습니다.' });
     }
     
     // 토큰 버전 검증 (로그아웃 시 버전이 증가하면 이전 토큰 무효화)
-    if (decoded.tokenVersion !== business.tokenVersion) {
+    if (decoded.tokenVersion !== user.tokenVersion) {
       return res.status(403).json({ message: '토큰이 만료되었습니다. 다시 로그인해주세요.' });
     }
     

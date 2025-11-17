@@ -3,6 +3,7 @@ const router = express.Router();
 const Notice = require("../models/Notice");
 const OwnHotel = require("../models/OwnHotel");
 const Hotel = require("../models/Hotel");
+const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
 const mongoose = require("mongoose");
@@ -20,6 +21,12 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "own_hotel_id는 필수입니다." });
     }
 
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     // 소유 숙소 소유권 확인
     const ownHotel = await OwnHotel.findById(own_hotel_id).populate('hotel_id');
     if (!ownHotel) {
@@ -27,7 +34,7 @@ router.post("/", async (req, res) => {
     }
 
     const hotel = await Hotel.findById(ownHotel.hotel_id);
-    if (!hotel || String(hotel.business) !== req.user.id) {
+    if (!hotel || String(hotel.business) !== String(business._id)) {
       return res.status(403).json({ message: "권한이 없습니다." });
     }
 

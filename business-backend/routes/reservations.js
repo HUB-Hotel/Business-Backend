@@ -4,6 +4,7 @@ const Reservation = require("../models/Reservation");
 const Payment = require("../models/Payment");
 const Hotel = require("../models/Hotel");
 const OwnHotel = require("../models/OwnHotel");
+const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
 const mongoose = require("mongoose");
@@ -15,10 +16,15 @@ router.use(requireBusiness);
 // 예약 목록 조회 (필터링 지원)
 router.get("/", async (req, res) => {
   try {
-    const businessId = req.user.id;
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     const { status, hotelId, startDate, endDate, page = 1, limit = 20 } = req.query;
 
-    const query = { business: businessId };
+    const query = { business: business._id };
 
     if (status) {
       query.status = status;

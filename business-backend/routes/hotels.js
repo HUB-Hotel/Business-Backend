@@ -4,6 +4,7 @@ const Hotel = require("../models/Hotel");
 const Facility = require("../models/Facility");
 const OwnHotel = require("../models/OwnHotel");
 const Reservation = require("../models/Reservation");
+const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
 const mongoose = require("mongoose");
@@ -16,8 +17,13 @@ router.use(requireBusiness);
 // 내 호텔 목록 조회
 router.get("/", async (req, res) => {
   try {
-    const businessId = req.user.id;
-    const hotels = await Hotel.find({ business: businessId })
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
+    const hotels = await Hotel.find({ business: business._id })
       .populate('facility_id')
       .sort({ createdAt: -1 })
       .lean();
@@ -36,9 +42,15 @@ router.get("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     const hotel = await Hotel.findOne({
       _id: req.params.id,
-      business: req.user.id
+      business: business._id
     })
       .populate('facility_id');
 
@@ -72,6 +84,12 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "필수 필드가 누락되었습니다." });
     }
 
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     // 편의시설 먼저 생성
     let facility = null;
     if (service_name) {
@@ -88,7 +106,7 @@ router.post("/", async (req, res) => {
     }
 
     const hotel = await Hotel.create({
-      business: req.user.id,
+      business: business._id,
       name,
       location,
       tel: tel || "",
@@ -116,9 +134,15 @@ router.put("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     const hotel = await Hotel.findOne({
       _id: req.params.id,
-      business: req.user.id
+      business: business._id
     });
 
     if (!hotel) {
@@ -165,9 +189,15 @@ router.delete("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
     const hotel = await Hotel.findOne({
       _id: req.params.id,
-      business: req.user.id
+      business: business._id
     });
 
     if (!hotel) {
@@ -192,4 +222,3 @@ router.delete("/:id", async (req, res) => {
 });
 
 module.exports = router;
-

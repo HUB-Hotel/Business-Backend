@@ -2,59 +2,95 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const User = require("../models/User");
 const Business = require("../models/Business");
 const { authenticateToken } = require('../middlewares/auth');
 
 const LOCK_MAX = 5;
 const LOCKOUT_DURATION_MS = 10 * 60 * 1000; // 10분
 
-function makeToken(business) {
+function makeToken(user) {
   return jwt.sign(
     {
-      id: business._id.toString(),
-      role: business.role,
-      email: business.email,
-      tokenVersion: business.tokenVersion || 0
+      id: user._id.toString(),
+      role: user.role,
+      email: user.email,
+      tokenVersion: user.tokenVersion || 0
     },
     process.env.JWT_SECRET,
     {
       expiresIn: "7d",
-      jwtid: `${business._id}-${Date.now()}`,
+      jwtid: `${user._id}-${Date.now()}`,
     }
   );
 }
 
-// 회원가입
+// 회원가입 (USER 또는 BUSINESS)
 router.post("/register", async (req, res) => {
   try {
-    const { email, password, businessName, ownerName, phone, businessNumber, address } = req.body;
+    const { 
+      email, 
+      password, 
+      user_name, 
+      phone, 
+      date_of_birth,
+      address,
+      profile_image,
+      role = "USER", // 기본값: USER, BUSINESS도 가능
+      // 사업자 등록 시 추가 필드
+      business_name,
+      business_number
+    } = req.body;
 
-    if (!email || !password || !businessName) {
-      return res.status(400).json({ message: "이메일/비밀번호/사업자명은 필수입니다." });
+    // 필수 필드 검증
+    if (!email || !password || !user_name) {
+      return res.status(400).json({ message: "이메일/비밀번호/이름은 필수입니다." });
     }
 
-    const exists = await Business.findOne({
-      email: email.toLowerCase()
-    });
+    if (!["USER", "BUSINESS", "ADMIN"].includes(role)) {
+      return res.status(400).json({ message: "유효하지 않은 role입니다." });
+    }
 
-    if (exists) {
+    if (role === "BUSINESS" && (!business_name || !business_number)) {
+      return res.status(400).json({ message: "사업자 등록 시 사업자명과 사업자등록번호는 필수입니다." });
+    }
+
+    // 이메일 중복 검사
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
       return res.status(400).json({ message: "이미 가입된 이메일" });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    const business = await Business.create({
+    // User 생성
+    const user = await User.create({
       email: email.toLowerCase(),
-      passwordHash,
-      businessName,
-      ownerName: ownerName || "",
+      password,
+      user_name,
       phone: phone || "",
-      businessNumber: businessNumber || "",
+      date_of_birth: date_of_birth || null,
       address: address || "",
-      role: "business"
+      profile_image: profile_image || "",
+      role,
+      status: role === "BUSINESS" ? "pending" : "active" // 사업자는 승인 대기
     });
 
-    res.status(201).json({ business: business.toSafeJSON() });
+    // 비밀번호 해싱
+    await user.setPassword(password);
+    await user.save();
+
+    // 사업자 역할이면 Business 문서도 생성
+    if (role === "BUSINESS") {
+      await Business.create({
+        login_id: user._id,
+        business_name,
+        business_number
+      });
+    }
+
+    res.status(201).json({ 
+      user: user.toSafeJSON(),
+      message: role === "BUSINESS" ? "사업자 등록이 완료되었습니다. 관리자 승인 대기 중입니다." : "회원가입 완료"
+    });
   } catch (error) {
     return res.status(500).json({
       message: "회원가입 실패",
@@ -79,11 +115,9 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const business = await Business.findOne({ email }).select(
-      "+passwordHash +role +isActive +failedLoginAttempts +lastLoginAttempt +tokenVersion"
-    );
+    const user = await User.findOne({ email }).select("+password +status +failedLoginAttempts +lastLoginAttempt +tokenVersion");
 
-    if (!business) {
+    if (!user) {
       return res.status(401).json({
         ...invalidMsg,
         loginAttempts: null,
@@ -92,21 +126,43 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // 계정 상태 확인
+    if (user.status === "suspended") {
+      return res.status(403).json({
+        message: "계정이 정지되었습니다. 관리자에게 문의하세요.",
+        locked: true
+      });
+    }
+
+    if (user.status === "inactive") {
+      return res.status(403).json({
+        message: "비활성화된 계정입니다.",
+        locked: true
+      });
+    }
+
+    // 사업자인 경우 승인 상태 확인
+    if (user.role === "BUSINESS" && user.status === "pending") {
+      return res.status(403).json({
+        message: "관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.",
+        locked: false
+      });
+    }
+
     // 잠금 해제 로직
-    if (!business.isActive) {
-      const last = business.lastLoginAttempt ? business.lastLoginAttempt.getTime() : 0;
+    if (user.failedLoginAttempts >= LOCK_MAX) {
+      const last = user.lastLoginAttempt ? user.lastLoginAttempt.getTime() : 0;
       const passed = Date.now() - last;
       if (passed > LOCKOUT_DURATION_MS) {
-        business.isActive = true;
-        business.failedLoginAttempts = 0;
-        business.lastLoginAttempt = null;
-        await business.save();
+        user.failedLoginAttempts = 0;
+        user.lastLoginAttempt = null;
+        await user.save();
       }
     }
 
     // 여전히 잠금 상태면 로그인 불가
-    if (!business.isActive) {
-      const last = business.lastLoginAttempt ? business.lastLoginAttempt.getTime() : 0;
+    if (user.failedLoginAttempts >= LOCK_MAX) {
+      const last = user.lastLoginAttempt ? user.lastLoginAttempt.getTime() : 0;
       const remainMs = Math.max(0, LOCKOUT_DURATION_MS - (Date.now() - last));
       const remainMin = Math.ceil(remainMs / 60000);
 
@@ -120,48 +176,44 @@ router.post("/login", async (req, res) => {
     }
 
     // 비밀번호 검증
-    const ok =
-      typeof business.comparePassword === 'function'
-        ? await business.comparePassword(password)
-        : await bcrypt.compare(password, business.passwordHash || "");
+    const ok = await user.comparePassword(password);
 
     // 비밀번호 불일치
     if (!ok) {
-      business.failedLoginAttempts += 1;
-      business.lastLoginAttempt = new Date();
+      user.failedLoginAttempts += 1;
+      user.lastLoginAttempt = new Date();
 
       // 최대 횟수 초과 계정 잠금
-      if (business.failedLoginAttempts >= LOCK_MAX) {
-        business.isActive = false;
-        await business.save();
+      if (user.failedLoginAttempts >= LOCK_MAX) {
+        await user.save();
 
         return res.status(423).json({
           message: "유효성 검증 실패로 계정이 잠겼습니다. 관리자에게 문의하세요.",
-          loginAttempts: business.failedLoginAttempts,
+          loginAttempts: user.failedLoginAttempts,
           remainingAttempts: 0,
           locked: true
         });
       }
 
-      const remaining = Math.max(0, LOCK_MAX - business.failedLoginAttempts);
-      await business.save();
+      const remaining = Math.max(0, LOCK_MAX - user.failedLoginAttempts);
+      await user.save();
 
       return res.status(400).json({
         ...invalidMsg,
-        loginAttempts: business.failedLoginAttempts,
+        loginAttempts: user.failedLoginAttempts,
         remainingAttempts: remaining,
         locked: false
       });
     }
 
     // 로그인 성공: 실패 카운트 초기화 및 토큰 버전 증가 (이전 세션 무효화)
-    business.failedLoginAttempts = 0;
-    business.lastLoginAttempt = new Date();
-    business.tokenVersion = (business.tokenVersion || 0) + 1;
-    await business.save();
+    user.failedLoginAttempts = 0;
+    user.lastLoginAttempt = new Date();
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
 
     // JWT 발급 및 쿠키 설정
-    const token = makeToken(business);
+    const token = makeToken(user);
 
     res.cookie('token', token, {
       httpOnly: true,
@@ -173,7 +225,7 @@ router.post("/login", async (req, res) => {
 
     // 성공 응답
     return res.status(200).json({
-      business: business.toSafeJSON(),
+      user: user.toSafeJSON(),
       token,
       loginAttempts: 0,
       remainingAttempts: LOCK_MAX,
@@ -193,11 +245,19 @@ router.use(authenticateToken);
 // 내 정보 조회
 router.get("/me", async (req, res) => {
   try {
-    const me = await Business.findById(req.user.id);
+    const user = await User.findById(req.user.id);
 
-    if (!me) return res.status(404).json({ message: "사업자 정보 없음" });
+    if (!user) return res.status(404).json({ message: "사용자 정보 없음" });
 
-    return res.status(200).json(me.toSafeJSON());
+    // 사업자인 경우 사업자 정보도 함께 반환
+    let responseData = user.toSafeJSON();
+    
+    if (user.role === "BUSINESS") {
+      const business = await Business.findOne({ login_id: user._id });
+      responseData.business = business;
+    }
+
+    return res.status(200).json(responseData);
   } catch (error) {
     res.status(401).json({ message: "조회 실패", error: error.message });
   }
@@ -207,7 +267,7 @@ router.get("/me", async (req, res) => {
 router.post("/logout", async (req, res) => {
   try {
     // 토큰 버전 증가 (이전 토큰 무효화)
-    await Business.findByIdAndUpdate(
+    await User.findByIdAndUpdate(
       req.user.id,
       { $inc: { tokenVersion: 1 } },
       { new: true }
@@ -227,4 +287,3 @@ router.post("/logout", async (req, res) => {
 });
 
 module.exports = router;
-

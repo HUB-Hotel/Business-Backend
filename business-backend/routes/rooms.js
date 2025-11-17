@@ -5,6 +5,7 @@ const OwnHotelPicture = require("../models/OwnHotelPicture");
 const Notice = require("../models/Notice");
 const Reservation = require("../models/Reservation");
 const Hotel = require("../models/Hotel");
+const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
 const mongoose = require("mongoose");
@@ -43,12 +44,17 @@ router.use(requireBusiness);
 router.get("/hotel/:hotelId", async (req, res) => {
   try {
     const { hotelId } = req.params;
-    const businessId = req.user.id;
+
+    // User ID로부터 Business ID 조회
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
 
     // 호텔 소유권 확인
     const hotel = await Hotel.findOne({
       _id: hotelId,
-      business: businessId
+      business: business._id
     });
 
     if (!hotel) {
