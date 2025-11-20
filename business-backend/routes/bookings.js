@@ -3,6 +3,8 @@ const router = express.Router();
 const Booking = require("../models/Booking");
 const Payment = require("../models/Payment");
 const Room = require("../models/Room");
+const Lodging = require("../models/Lodging");
+const User = require("../models/User");
 const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
@@ -72,9 +74,12 @@ router.get("/", async (req, res) => {
             .lean()
         ]);
         
+        const lodging = room ? await Lodging.findById(room.lodging_id).lean() : null;
+        
         return {
           booking: booking,
           room: room || null,
+          lodging: lodging || null,
           user: user || null,
           payment: payment || null
         };
@@ -123,9 +128,12 @@ router.get("/:id", async (req, res) => {
         .lean()
     ]);
 
+    const lodging = room ? await Lodging.findById(room.lodging_id).lean() : null;
+
     res.json({
       booking: booking.toObject(),
       room: room || null,
+      lodging: lodging || null,
       user: user || null,
       payment: payment || null
     });
@@ -176,16 +184,23 @@ router.patch("/:id/status", async (req, res) => {
       req.params.id,
       { $set: updates },
       { new: true, runValidators: true }
-    )
-      .populate('room_id', 'room_name price')
-      .populate('user_id', 'email user_name');
+    );
 
-    const payment = await Payment.findOne({ booking_id: updated._id })
-      .populate('payment_type_id')
-      .lean();
+    const [room, user, payment] = await Promise.all([
+      Room.findById(updated.room_id).lean(),
+      User.findById(updated.user_id).select('-password').lean(),
+      Payment.findOne({ booking_id: updated._id })
+        .populate('payment_type_id')
+        .lean()
+    ]);
+
+    const lodging = room ? await Lodging.findById(room.lodging_id).lean() : null;
 
     res.json({
-      ...updated.toObject(),
+      booking: updated.toObject(),
+      room: room || null,
+      lodging: lodging || null,
+      user: user || null,
       payment: payment || null
     });
   } catch (error) {
@@ -221,27 +236,34 @@ router.patch("/:id/payment", async (req, res) => {
       return res.status(404).json({ message: "예약을 찾을 수 없습니다." });
     }
 
-    const payment = await Payment.findOne({ booking_id: req.params.id });
-    if (payment) {
+    const paymentDoc = await Payment.findOne({ booking_id: req.params.id });
+    if (paymentDoc) {
       if (paymentStatus === 'paid') {
-        payment.paid = payment.total;
+        paymentDoc.paid = paymentDoc.total;
       } else if (paymentStatus === 'refunded') {
-        payment.paid = 0;
+        paymentDoc.paid = 0;
       }
-      await payment.save();
+      await paymentDoc.save();
     }
 
-    const updated = await Booking.findById(req.params.id)
-      .populate('room_id', 'room_name price')
-      .populate('user_id', 'email user_name');
+    const updated = await Booking.findById(req.params.id);
 
-    const updatedPayment = await Payment.findOne({ booking_id: req.params.id })
-      .populate('payment_type_id')
-      .lean();
+    const [room, user, payment] = await Promise.all([
+      Room.findById(updated.room_id).lean(),
+      User.findById(updated.user_id).select('-password').lean(),
+      Payment.findOne({ booking_id: req.params.id })
+        .populate('payment_type_id')
+        .lean()
+    ]);
+
+    const lodging = room ? await Lodging.findById(room.lodging_id).lean() : null;
 
     res.json({
-      ...updated.toObject(),
-      payment: updatedPayment || null
+      booking: updated.toObject(),
+      room: room || null,
+      lodging: lodging || null,
+      user: user || null,
+      payment: payment || null
     });
   } catch (error) {
     console.error("PATCH /api/bookings/:id/payment 실패", error);
