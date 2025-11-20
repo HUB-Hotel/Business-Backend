@@ -91,7 +91,7 @@ const roomSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    collection: 'rooms'  // own_hotels → rooms
+    collection: 'rooms'
   }
 );
 

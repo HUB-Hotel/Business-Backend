@@ -2,10 +2,9 @@ const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema(
   {
-    // ERD: payments 테이블
-    booking_id: {  // reserve_id → booking_id
+    booking_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Booking',  // Reservation → Booking
+      ref: 'Booking',
       required: true,
       unique: true,
       index: true
@@ -14,6 +13,7 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'PaymentType',
       required: true
+      // 사용된 카드 타입 (신용카드, 체크카드 등)
     },
     total: {
       type: Number,

@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const Booking = require("../models/Booking");  // Reservation → Booking
+const Booking = require("../models/Booking");
 const Payment = require("../models/Payment");
-const Lodging = require("../models/Lodging");
-const Room = require("../models/Room");  // OwnHotel → Room
+const Room = require("../models/Room");
 const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
@@ -22,20 +21,26 @@ router.get("/", async (req, res) => {
       return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
     }
 
-    const { status, hotelId, startDate, endDate, page = 1, limit = 20 } = req.query;
+    const { status, lodgingId, startDate, endDate, page = 1, limit = 20 } = req.query;
 
-    const query = { business_id: business._id };  // business → business_id
+    const query = { business_id: business._id };
 
     if (status) {
-      query.booking_status = status;  // status → booking_status
+      query.booking_status = status;
     }
 
-    if (hotelId) {
-      // hotelId는 room_id를 통해 조회해야 할 수도 있음
+    if (lodgingId) {
+      const rooms = await Room.find({ lodging_id: lodgingId }).select('_id');
+      const roomIds = rooms.map(r => r._id);
+      if (roomIds.length > 0) {
+        query.room_id = { $in: roomIds };
+      } else {
+        query.room_id = { $in: [] };
+      }
     }
 
     if (startDate || endDate) {
-      query.checkin_date = {};  // start_date → checkin_date
+      query.checkin_date = {};
       if (startDate) {
         query.checkin_date.$gte = new Date(startDate);
       }
@@ -46,21 +51,20 @@ router.get("/", async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const [bookings, total] = await Promise.all([  // reservations → bookings
-      Booking.find(query)  // Reservation → Booking
-        .populate('room_id', 'room_name price')  // own_hotel_id → room_id
-        .populate('user_id', 'email user_name')  // fullname → user_name
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .populate('room_id', 'room_name price')
+        .populate('user_id', 'email user_name')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Booking.countDocuments(query)  // Reservation → Booking
+      Booking.countDocuments(query)
     ]);
 
-    // 각 예약의 결제 정보 포함
-    const bookingsWithPayment = await Promise.all(  // reservationsWithPayment → bookingsWithPayment
-      bookings.map(async (booking) => {  // reservation → booking
-        const payment = await Payment.findOne({ booking_id: booking._id })  // reserve_id → booking_id
+    const bookingsWithPayment = await Promise.all(
+      bookings.map(async (booking) => {
+        const payment = await Payment.findOne({ booking_id: booking._id })
           .populate('payment_type_id')
           .lean();
         return {
@@ -71,7 +75,7 @@ router.get("/", async (req, res) => {
     );
 
     res.json({
-      bookings: bookingsWithPayment,  // reservations → bookings
+      bookings: bookingsWithPayment,
       total,
       page: parseInt(page),
       limit: parseInt(limit),
@@ -90,18 +94,23 @@ router.get("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
-    const booking = await Booking.findOne({  // reservation → booking, Reservation → Booking
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
+    const booking = await Booking.findOne({
       _id: req.params.id,
-      business_id: req.user.id  // business → business_id
+      business_id: business._id
     })
-      .populate('room_id')  // own_hotel_id → room_id
+      .populate('room_id')
       .populate('user_id');
 
     if (!booking) {
       return res.status(404).json({ message: "예약을 찾을 수 없습니다." });
     }
 
-    const payment = await Payment.findOne({ booking_id: booking._id })  // reserve_id → booking_id
+    const payment = await Payment.findOne({ booking_id: booking._id })
       .populate('payment_type_id')
       .lean();
 
@@ -128,35 +137,39 @@ router.patch("/:id/status", async (req, res) => {
       return res.status(400).json({ message: "유효하지 않은 상태입니다." });
     }
 
-    const booking = await Booking.findOne({  // reservation → booking, Reservation → Booking
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
+    const booking = await Booking.findOne({
       _id: req.params.id,
-      business_id: req.user.id  // business → business_id
+      business_id: business._id
     });
 
     if (!booking) {
       return res.status(404).json({ message: "예약을 찾을 수 없습니다." });
     }
 
-    const updates = { booking_status: status };  // status → booking_status
+    const updates = { booking_status: status };
     
-    // 취소 시 결제 환불 처리
     if (status === 'cancelled') {
-      const payment = await Payment.findOne({ booking_id: req.params.id });  // reserve_id → booking_id
+      const payment = await Payment.findOne({ booking_id: req.params.id });
       if (payment) {
         payment.paid = 0;
         await payment.save();
       }
     }
 
-    const updated = await Booking.findByIdAndUpdate(  // Reservation → Booking
+    const updated = await Booking.findByIdAndUpdate(
       req.params.id,
       { $set: updates },
       { new: true, runValidators: true }
     )
-      .populate('room_id', 'room_name price')  // own_hotel_id → room_id
-      .populate('user_id', 'email user_name');  // fullname → user_name
+      .populate('room_id', 'room_name price')
+      .populate('user_id', 'email user_name');
 
-    const payment = await Payment.findOne({ booking_id: updated._id })  // reserve_id → booking_id
+    const payment = await Payment.findOne({ booking_id: updated._id })
       .populate('payment_type_id')
       .lean();
 
@@ -183,17 +196,21 @@ router.patch("/:id/payment", async (req, res) => {
       return res.status(400).json({ message: "유효하지 않은 결제 상태입니다." });
     }
 
-    const booking = await Booking.findOne({  // reservation → booking, Reservation → Booking
+    const business = await Business.findOne({ login_id: req.user.id });
+    if (!business) {
+      return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
+    }
+
+    const booking = await Booking.findOne({
       _id: req.params.id,
-      business_id: req.user.id  // business → business_id
+      business_id: business._id
     });
 
     if (!booking) {
       return res.status(404).json({ message: "예약을 찾을 수 없습니다." });
     }
 
-    // Payment 모델 업데이트
-    const payment = await Payment.findOne({ booking_id: req.params.id });  // reserve_id → booking_id
+    const payment = await Payment.findOne({ booking_id: req.params.id });
     if (payment) {
       if (paymentStatus === 'paid') {
         payment.paid = payment.total;
@@ -203,11 +220,11 @@ router.patch("/:id/payment", async (req, res) => {
       await payment.save();
     }
 
-    const updated = await Booking.findById(req.params.id)  // Reservation → Booking
-      .populate('room_id', 'room_name price')  // own_hotel_id → room_id
-      .populate('user_id', 'email user_name');  // fullname → user_name
+    const updated = await Booking.findById(req.params.id)
+      .populate('room_id', 'room_name price')
+      .populate('user_id', 'email user_name');
 
-    const updatedPayment = await Payment.findOne({ booking_id: req.params.id })  // reserve_id → booking_id
+    const updatedPayment = await Payment.findOne({ booking_id: req.params.id })
       .populate('payment_type_id')
       .lean();
 

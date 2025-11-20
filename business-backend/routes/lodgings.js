@@ -2,22 +2,20 @@ const express = require("express");
 const router = express.Router();
 const Lodging = require("../models/Lodging");
 const Amenity = require("../models/Amenity");
-const OwnHotel = require("../models/OwnHotel");
 const Booking = require("../models/Booking");
+const Room = require("../models/Room");
 const Business = require("../models/Business");
 const { authenticateToken } = require("../middlewares/auth");
 const { requireBusiness } = require("../middlewares/roles");
 const mongoose = require("mongoose");
 
-
 // 모든 라우트는 인증 및 사업자 권한 필요
 router.use(authenticateToken);
 router.use(requireBusiness);
 
-// 내 숙소 목록 조회
+// 숙소 목록 조회
 router.get("/", async (req, res) => {
   try {
-    // User ID로부터 Business ID 조회
     const business = await Business.findOne({ login_id: req.user.id });
     if (!business) {
       return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
@@ -42,7 +40,6 @@ router.get("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
-    // User ID로부터 Business ID 조회
     const business = await Business.findOne({ login_id: req.user.id });
     if (!business) {
       return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
@@ -104,7 +101,6 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: `카테고리는 다음 중 하나여야 합니다: ${validCategories.join(", ")}` });
     }
 
-    // User ID로부터 Business ID 조회
     const business = await Business.findOne({ login_id: req.user.id });
     if (!business) {
       return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
@@ -144,7 +140,7 @@ router.post("/", async (req, res) => {
       address,
       star_rating,
       description,
-      images: imagesArray,  // image → images
+      images: imagesArray,
       country,
       category,
       user_name,
@@ -169,7 +165,6 @@ router.put("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
-    // User ID로부터 Business ID 조회
     const business = await Business.findOne({ login_id: req.user.id });
     if (!business) {
       return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
@@ -262,7 +257,6 @@ router.delete("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
-    // User ID로부터 Business ID 조회
     const business = await Business.findOne({ login_id: req.user.id });
     if (!business) {
       return res.status(404).json({ message: "사업자 정보를 찾을 수 없습니다." });
@@ -277,14 +271,17 @@ router.delete("/:id", async (req, res) => {
       return res.status(404).json({ message: "숙소를 찾을 수 없습니다." });
     }
 
-    // 예약이 있는지 확인
-    const hasBookings = await Booking.exists({ lodging_id: req.params.id });
-    if (hasBookings) {
-      return res.status(400).json({ message: "예약이 있어 숙소를 삭제할 수 없습니다." });
+    const rooms = await Room.find({ lodging_id: req.params.id }).select('_id');
+    const roomIds = rooms.map(r => r._id);
+    if (roomIds.length > 0) {
+      const hasBookings = await Booking.exists({ room_id: { $in: roomIds } });
+      if (hasBookings) {
+        return res.status(400).json({ message: "예약이 있어 숙소를 삭제할 수 없습니다." });
+      }
     }
 
-    // 소유 숙소도 함께 삭제 (있는 경우)
-    await OwnHotel.deleteMany({ hotel_id: req.params.id });
+    // 객실도 함께 삭제 (있는 경우)
+    await Room.deleteMany({ lodging_id: req.params.id });
     await lodging.deleteOne();
 
     res.json({ ok: true, id: lodging._id });

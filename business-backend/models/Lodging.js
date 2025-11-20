@@ -31,11 +31,10 @@ const lodgingSchema = new mongoose.Schema(
       trim: true
     },
     
-    images: {  // image → images로 변경
+    images: {
       type: [String],
       default: [],
       trim: true
-      // 숙소 전체 사진 및 편의시설 사진 배열
     },
     
     // 🌍 위치 정보
@@ -61,10 +60,9 @@ const lodgingSchema = new mongoose.Schema(
       maxlength: 50
     },
     
-    // 📅 예약 정보
-    booking_id: {  // reservation_id → booking_id
+    booking_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Booking',  // Reservation → Booking
+      ref: 'Booking',
       required: false
     },
     
@@ -84,10 +82,9 @@ const lodgingSchema = new mongoose.Schema(
       index: true
     },
     
-    // 🎯 편의시설 정보 (선택사항)
-    amenity_id: {  // facility_id → amenity_id
+    amenity_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Amenity',  // Facility → Amenity
+      ref: 'Amenity',
       required: false
     }
   },
@@ -102,7 +99,7 @@ lodgingSchema.index({ business_id: 1, created_at: -1 });
 lodgingSchema.index({ country: 1 });
 lodgingSchema.index({ category: 1 });
 lodgingSchema.index({ star_rating: -1 });
-lodgingSchema.index({ amenity_id: 1 });  // facility_id → amenity_id
+lodgingSchema.index({ amenity_id: 1 });
 
 module.exports = mongoose.model('Lodging', lodgingSchema);
 

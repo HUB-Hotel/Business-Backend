@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { presignPut } = require('../src/s3');
+const { presignPut } = require('../src/s3.js');
 const { authenticateToken } = require('../middlewares/auth');
 const { requireBusiness } = require('../middlewares/roles');
 

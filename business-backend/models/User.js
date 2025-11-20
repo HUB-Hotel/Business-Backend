@@ -63,13 +63,6 @@ const userSchema = new mongoose.Schema(
       index: true
     },
 
-    // 💳 결제 방법
-    payment_method: {
-      type: String,
-      enum: ["credit_card", "debit_card", "bank_transfer", "none"],
-      default: "none"
-    },
-
     // 🔒 보안 관련
     failedLoginAttempts: {
       type: Number,

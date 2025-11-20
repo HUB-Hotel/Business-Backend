@@ -25,7 +25,7 @@ function makeToken(user) {
   );
 }
 
-// 회원가입 (USER 또는 BUSINESS)
+// 회원가입 (USER만 가능)
 router.post("/register", async (req, res) => {
   try {
     const { 
@@ -35,24 +35,12 @@ router.post("/register", async (req, res) => {
       phone, 
       date_of_birth,
       address,
-      profile_image,
-      role = "USER", // 기본값: USER, BUSINESS도 가능
-      // 사업자 등록 시 추가 필드
-      business_name,
-      business_number
+      profile_image
     } = req.body;
 
     // 필수 필드 검증
     if (!email || !password || !user_name) {
       return res.status(400).json({ message: "이메일/비밀번호/이름은 필수입니다." });
-    }
-
-    if (!["USER", "BUSINESS", "ADMIN"].includes(role)) {
-      return res.status(400).json({ message: "유효하지 않은 role입니다." });
-    }
-
-    if (role === "BUSINESS" && (!business_name || !business_number)) {
-      return res.status(400).json({ message: "사업자 등록 시 사업자명과 사업자등록번호는 필수입니다." });
     }
 
     // 이메일 중복 검사
@@ -61,7 +49,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "이미 가입된 이메일" });
     }
 
-    // User 생성
+    // User 생성 (항상 USER role, active status)
     const user = await User.create({
       email: email.toLowerCase(),
       password,
@@ -70,26 +58,17 @@ router.post("/register", async (req, res) => {
       date_of_birth: date_of_birth || null,
       address: address || "",
       profile_image: profile_image || "",
-      role,
-      status: role === "BUSINESS" ? "pending" : "active" // 사업자는 승인 대기
+      role: "USER",
+      status: "active"
     });
 
     // 비밀번호 해싱
     await user.setPassword(password);
     await user.save();
 
-    // 사업자 역할이면 Business 문서도 생성
-    if (role === "BUSINESS") {
-      await Business.create({
-        login_id: user._id,
-        business_name,
-        business_number
-      });
-    }
-
     res.status(201).json({ 
       user: user.toSafeJSON(),
-      message: role === "BUSINESS" ? "사업자 등록이 완료되었습니다. 관리자 승인 대기 중입니다." : "회원가입 완료"
+      message: "회원가입 완료"
     });
   } catch (error) {
     return res.status(500).json({
@@ -283,6 +262,65 @@ router.post("/logout", async (req, res) => {
     return res.status(200).json({ message: '로그아웃 성공' });
   } catch (error) {
     return res.status(500).json({ message: '로그아웃 실패', error: error.message });
+  }
+});
+
+// 사업자 신청
+router.post("/apply-business", async (req, res) => {
+  try {
+    const { business_name, business_number } = req.body;
+    const userId = req.user.id;
+
+    // 필수 필드 검증
+    if (!business_name || !business_number) {
+      return res.status(400).json({ message: "사업자명과 사업자등록번호는 필수입니다." });
+    }
+
+    // 현재 사용자 정보 조회
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "사용자 정보를 찾을 수 없습니다." });
+    }
+
+    // 이미 BUSINESS role인지 확인
+    if (user.role === "BUSINESS") {
+      return res.status(400).json({ message: "이미 사업자로 등록되어 있습니다." });
+    }
+
+    // 이미 Business 문서가 존재하는지 확인
+    const existingBusiness = await Business.findOne({ login_id: userId });
+    if (existingBusiness) {
+      return res.status(400).json({ message: "이미 사업자 신청이 완료되었습니다." });
+    }
+
+    // Business 문서 생성
+    await Business.create({
+      login_id: userId,
+      business_name,
+      business_number
+    });
+
+    // User role을 BUSINESS로, status를 pending으로 변경
+    // 토큰 무효화를 위해 tokenVersion도 증가
+    user.role = "BUSINESS";
+    user.status = "pending";
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    res.status(201).json({
+      message: "사업자 신청이 완료되었습니다. 관리자 승인 대기 중입니다.",
+      user: user.toSafeJSON()
+    });
+  } catch (error) {
+    // 사업자등록번호 중복 에러 처리
+    if (error.code === 11000 && error.keyPattern?.business_number) {
+      return res.status(400).json({ message: "이미 등록된 사업자등록번호입니다." });
+    }
+    
+    return res.status(500).json({
+      message: "사업자 신청 실패",
+      error: error.message
+    });
   }
 });
 
