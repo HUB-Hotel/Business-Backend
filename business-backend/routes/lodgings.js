@@ -48,15 +48,22 @@ router.get("/:id", async (req, res) => {
     const lodging = await Lodging.findOne({
       _id: req.params.id,
       business_id: business._id
-    })
-      .populate('amenity_id')
-      .populate('booking_id');
+    });
 
     if (!lodging) {
       return res.status(404).json({ message: "숙소를 찾을 수 없습니다." });
     }
 
-    res.json(lodging);
+    const [amenity, booking] = await Promise.all([
+      lodging.amenity_id ? Amenity.findById(lodging.amenity_id).lean() : null,
+      lodging.booking_id ? Booking.findById(lodging.booking_id).lean() : null
+    ]);
+
+    res.json({
+      lodging: lodging.toObject(),
+      amenity: amenity || null,
+      booking: booking || null
+    });
   } catch (error) {
     console.error("GET /api/lodgings/:id 실패", error);
     res.status(500).json({ message: "서버 오류" });

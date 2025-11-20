@@ -60,9 +60,9 @@ router.get("/lodging/:lodgingId", async (req, res) => {
     }
 
     const rooms = await Room.find({ lodging_id: lodgingId })
-      .populate('lodging_id', 'lodging_name address country')
       .sort({ createdAt: -1 })
       .lean();
+      
     const roomsWithDetails = await Promise.all(
       rooms.map(async (room) => {
         const [pictures, notice] = await Promise.all([
@@ -71,7 +71,8 @@ router.get("/lodging/:lodgingId", async (req, res) => {
         ]);
 
         return {
-          ...room,
+          room: room,
+          lodging: lodging.toObject(),
           pictures: pictures.map(p => ({
             picture_name: p.picture_name,
             picture_url: processImageUrls({ image: p.picture_url }).image
@@ -95,8 +96,7 @@ router.get("/:id", async (req, res) => {
       return res.status(400).json({ message: "잘못된 id 형식입니다." });
     }
 
-    const room = await Room.findById(req.params.id)
-      .populate('lodging_id');
+    const room = await Room.findById(req.params.id);
 
     if (!room) {
       return res.status(404).json({ message: "객실을 찾을 수 없습니다." });
@@ -120,7 +120,8 @@ router.get("/:id", async (req, res) => {
     ]);
 
     const result = {
-      ...room.toObject(),
+      room: room.toObject(),
+      lodging: lodging.toObject(),
       pictures: pictures.map(p => ({
         picture_name: p.picture_name,
         picture_url: processImageUrls({ image: p.picture_url }).image

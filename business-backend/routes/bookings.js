@@ -64,11 +64,18 @@ router.get("/", async (req, res) => {
 
     const bookingsWithPayment = await Promise.all(
       bookings.map(async (booking) => {
-        const payment = await Payment.findOne({ booking_id: booking._id })
-          .populate('payment_type_id')
-          .lean();
+        const [room, user, payment] = await Promise.all([
+          Room.findById(booking.room_id).lean(),
+          User.findById(booking.user_id).select('-password').lean(),
+          Payment.findOne({ booking_id: booking._id })
+            .populate('payment_type_id')
+            .lean()
+        ]);
+        
         return {
-          ...booking,
+          booking: booking,
+          room: room || null,
+          user: user || null,
           payment: payment || null
         };
       })
@@ -102,20 +109,24 @@ router.get("/:id", async (req, res) => {
     const booking = await Booking.findOne({
       _id: req.params.id,
       business_id: business._id
-    })
-      .populate('room_id')
-      .populate('user_id');
+    });
 
     if (!booking) {
       return res.status(404).json({ message: "예약을 찾을 수 없습니다." });
     }
 
-    const payment = await Payment.findOne({ booking_id: booking._id })
-      .populate('payment_type_id')
-      .lean();
+    const [room, user, payment] = await Promise.all([
+      Room.findById(booking.room_id).lean(),
+      User.findById(booking.user_id).select('-password').lean(),
+      Payment.findOne({ booking_id: booking._id })
+        .populate('payment_type_id')
+        .lean()
+    ]);
 
     res.json({
-      ...booking.toObject(),
+      booking: booking.toObject(),
+      room: room || null,
+      user: user || null,
       payment: payment || null
     });
   } catch (error) {
