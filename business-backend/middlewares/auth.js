@@ -39,7 +39,11 @@ exports.authenticateToken = async (req, res, next) => {
       return res.status(403).json({ message: '토큰이 만료되었습니다. 다시 로그인해주세요.' });
     }
     
-    req.user = decoded;
+    // DB에서 조회한 사용자 정보를 req.user에 추가
+    req.user = {
+      ...decoded,
+      role: user.role  // DB에서 조회한 role 추가
+    };
     next();
   } catch (err) {
     console.error("❌ Invalid token:", err.message);
