@@ -25,15 +25,24 @@ router.post("/", authenticateToken, requireRole("USER"), async (req, res) => {
       return res.status(400).json({ message: "평점은 1부터 5까지입니다." });
     }
 
-    // 예약 이력 확인
-    const booking = await Booking.findOne({
-      _id: booking_id,
-      user_id: user_id,
-      booking_status: { $in: ['confirmed', 'completed'] }
-    });
-
+    // 예약 존재 여부 확인
+    const booking = await Booking.findById(booking_id);
     if (!booking) {
-      return res.status(403).json({ message: "리뷰를 작성할 권한이 없습니다. 확인된 예약 이력이 필요합니다." });
+      return res.status(404).json({ message: "예약을 찾을 수 없습니다." });
+    }
+
+    // 사용자 일치 확인
+    if (booking.user_id.toString() !== user_id) {
+      return res.status(403).json({ 
+        message: "리뷰를 작성할 권한이 없습니다. 본인의 예약만 리뷰를 작성할 수 있습니다." 
+      });
+    }
+
+    // 예약 상태 확인
+    if (!['confirmed', 'completed'].includes(booking.booking_status)) {
+      return res.status(403).json({ 
+        message: `리뷰를 작성할 권한이 없습니다. 예약 상태가 'confirmed' 또는 'completed'여야 합니다. 현재 상태: ${booking.booking_status}` 
+      });
     }
 
     // 해당 예약의 room_id로 lodging_id 확인
