@@ -6,14 +6,14 @@ const Business = require("../auth/business");
 
 // 숙소 목록 조회
 const getLodgings = async (userId) => {
-  const business = await Business.findOne({ login_id: userId });
+  const business = await Business.findOne({ loginId: userId });
   if (!business) {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
-  const lodgings = await Lodging.find({ business_id: business._id })
-    .populate('amenity_id')
-    .sort({ created_at: -1 })
+  const lodgings = await Lodging.find({ businessId: business._id })
+    .populate('amenityId')
+    .sort({ createdAt: -1 })
     .lean();
 
   return lodgings;
@@ -21,14 +21,14 @@ const getLodgings = async (userId) => {
 
 // 숙소 상세 조회
 const getLodgingById = async (lodgingId, userId) => {
-  const business = await Business.findOne({ login_id: userId });
+  const business = await Business.findOne({ loginId: userId });
   if (!business) {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const lodging = await Lodging.findOne({
     _id: lodgingId,
-    business_id: business._id
+    businessId: business._id
   });
 
   if (!lodging) {
@@ -36,8 +36,8 @@ const getLodgingById = async (lodgingId, userId) => {
   }
 
   const [amenity, booking] = await Promise.all([
-    lodging.amenity_id ? Amenity.findById(lodging.amenity_id).lean() : null,
-    lodging.booking_id ? Booking.findById(lodging.booking_id).lean() : null
+    lodging.amenityId ? Amenity.findById(lodging.amenityId).lean() : null,
+    lodging.bookingId ? Booking.findById(lodging.bookingId).lean() : null
   ]);
 
   return {
@@ -50,30 +50,29 @@ const getLodgingById = async (lodgingId, userId) => {
 // 숙소 생성
 const createLodging = async (lodgingData, userId) => {
   const {
-    lodging_name,
+    lodgingName,
     address,
-    star_rating,
+    starRating,
     description,
     images,
     country,
     category,
-    user_name,
     hashtag,
-    amenity_name,
-    amenity_detail
+    amenityName,
+    amenityDetail
   } = lodgingData;
 
-  const business = await Business.findOne({ login_id: userId });
+  const business = await Business.findOne({ loginId: userId });
   if (!business) {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   // 편의시설 생성 (선택사항)
   let amenity = null;
-  if (amenity_name) {
+  if (amenityName) {
     amenity = await Amenity.create({
-      amenity_name,
-      amenity_detail: amenity_detail || ""
+      amenityName,
+      amenityDetail: amenityDetail || ""
     });
   }
 
@@ -96,35 +95,34 @@ const createLodging = async (lodgingData, userId) => {
   }
 
   const lodging = await Lodging.create({
-    business_id: business._id,
-    lodging_name,
+    businessId: business._id,
+    lodgingName,
     address,
-    star_rating,
+    starRating,
     description,
     images: imagesArray,
     country,
     category,
-    user_name,
     hashtag: hashtagArray,
-    amenity_id: amenity ? amenity._id : null
+    amenityId: amenity ? amenity._id : null
   });
 
   const createdLodging = await Lodging.findById(lodging._id)
-    .populate('amenity_id');
+    .populate('amenityId');
 
   return createdLodging;
 };
 
 // 숙소 수정
 const updateLodging = async (lodgingId, lodgingData, userId) => {
-  const business = await Business.findOne({ login_id: userId });
+  const business = await Business.findOne({ loginId: userId });
   if (!business) {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const lodging = await Lodging.findOne({
     _id: lodgingId,
-    business_id: business._id
+    businessId: business._id
   });
 
   if (!lodging) {
@@ -132,23 +130,23 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
   }
 
   const {
-    lodging_name,
+    lodgingName,
     address,
-    star_rating,
+    starRating,
     description,
     images,
     country,
     category,
-    user_name,
+    userName,
     hashtag,
-    amenity_name,
-    amenity_detail
+    amenityName,
+    amenityDetail
   } = lodgingData;
 
   const updates = {};
-  if (lodging_name !== undefined) updates.lodging_name = lodging_name;
+  if (lodgingName !== undefined) updates.lodgingName = lodgingName;
   if (address !== undefined) updates.address = address;
-  if (star_rating !== undefined) updates.star_rating = star_rating;
+  if (starRating !== undefined) updates.starRating = starRating;
   if (description !== undefined) updates.description = description;
   if (images !== undefined) {
     if (Array.isArray(images)) {
@@ -159,7 +157,6 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
   }
   if (country !== undefined) updates.country = country;
   if (category !== undefined) updates.category = category;
-  if (user_name !== undefined) updates.user_name = user_name;
   if (hashtag !== undefined) {
     if (Array.isArray(hashtag)) {
       updates.hashtag = hashtag;
@@ -167,15 +164,15 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
       updates.hashtag = hashtag.split(/[,\s]+/).filter(tag => tag.length > 0);
     }
   }
-  if (amenity_name !== undefined) {
-    if (amenity_name) {
+  if (amenityName !== undefined) {
+    if (amenityName) {
       const amenity = await Amenity.create({
-        amenity_name,
-        amenity_detail: amenity_detail || ""
+        amenityName,
+        amenityDetail: amenityDetail || ""
       });
-      updates.amenity_id = amenity._id;
+      updates.amenityId = amenity._id;
     } else {
-      updates.amenity_id = null;
+      updates.amenityId = null;
     }
   }
 
@@ -184,39 +181,39 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
     { $set: updates },
     { new: true, runValidators: true }
   )
-    .populate('amenity_id');
+    .populate('amenityId');
 
   return updated;
 };
 
 // 숙소 삭제
 const deleteLodging = async (lodgingId, userId) => {
-  const business = await Business.findOne({ login_id: userId });
+  const business = await Business.findOne({ loginId: userId });
   if (!business) {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const lodging = await Lodging.findOne({
     _id: lodgingId,
-    business_id: business._id
+    businessId: business._id
   });
 
   if (!lodging) {
     throw new Error("LODGING_NOT_FOUND");
   }
 
-  const rooms = await Room.find({ lodging_id: lodgingId }).select('_id');
+  const rooms = await Room.find({ lodgingId: lodgingId }).select('_id');
   const roomIds = rooms.map(r => r._id);
   if (roomIds.length > 0) {
     const Booking = require("../booking/model");
-    const hasBookings = await Booking.exists({ room_id: { $in: roomIds } });
+    const hasBookings = await Booking.exists({ roomId: { $in: roomIds } });
     if (hasBookings) {
       throw new Error("HAS_BOOKINGS");
     }
   }
 
   // 객실도 함께 삭제 (있는 경우)
-  await Room.deleteMany({ lodging_id: lodgingId });
+  await Room.deleteMany({ lodgingId: lodgingId });
   await lodging.deleteOne();
 
   return { ok: true, id: lodging._id };

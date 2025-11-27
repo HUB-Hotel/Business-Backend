@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const lodgingSchema = new mongoose.Schema(
   {
     // 🏨 숙소 기본 정보
-    lodging_name: {
+    lodgingName: {
       type: String,
       required: true,
       trim: true,
@@ -17,7 +17,7 @@ const lodgingSchema = new mongoose.Schema(
       maxlength: 255
     },
     
-    star_rating: {
+    starRating: {
       type: Number,
       required: true,
       min: 1,
@@ -52,15 +52,7 @@ const lodgingSchema = new mongoose.Schema(
       required: true
     },
     
-    // 👤 리뷰 작성 회원 정보 (숙소 작성자 아님)
-    user_name: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 50
-    },
-    
-    booking_id: {
+    bookingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
       required: false
@@ -74,31 +66,31 @@ const lodgingSchema = new mongoose.Schema(
     },
     
     // 🔗 사업자 참조 (Business 모델과 연결)
-    business_id: {
+    businessId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Business',
       required: true,
       index: true
     },
     
-    amenity_id: {
+    amenityId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Amenity',
       required: false
     }
   },
   {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    timestamps: true,
     collection: 'lodgings'
   }
 );
 
 // 복합 인덱스
-lodgingSchema.index({ business_id: 1, created_at: -1 });
+lodgingSchema.index({ businessId: 1, createdAt: -1 });
 lodgingSchema.index({ country: 1 });
 lodgingSchema.index({ category: 1 });
-lodgingSchema.index({ star_rating: -1 });
-lodgingSchema.index({ amenity_id: 1 });
+lodgingSchema.index({ starRating: -1 });
+lodgingSchema.index({ amenityId: 1 });
 
 module.exports = mongoose.model('Lodging', lodgingSchema);
 

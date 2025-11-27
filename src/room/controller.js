@@ -15,7 +15,7 @@ const getRooms = async (req, res) => {
       return res.status(400).json(errorResponse("잘못된 lodgingId 형식입니다.", 400));
     }
 
-    const result = await roomService.getRoomsByLodging(lodgingId, req.user.id);
+    const result = await roomService.getRooms(lodgingId, req.user.id);
     return res.status(200).json(successResponse(result, "SUCCESS", 200));
   } catch (error) {
     if (error.message === "BUSINESS_NOT_FOUND") {

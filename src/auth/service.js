@@ -22,7 +22,7 @@ const makeToken = (user) => {
 
 // 회원가입
 const register = async (userData) => {
-  const { email, password, displayName, phoneNumber, date_of_birth, address, profile_image } = userData;
+  const { email, password, name, phoneNumber, dateOfBirth, address, profileImage, role, businessName, businessNumber } = userData;
 
   // 이메일 중복 검사
   const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -30,15 +30,32 @@ const register = async (userData) => {
     throw new Error("EMAIL_ALREADY_EXISTS");
   }
 
+  // role 검증 (USER, BUSINESS, ADMIN 중 하나)
+  const validRoles = ["USER", "BUSINESS", "ADMIN"];
+  const userRole = role && validRoles.includes(role) ? role : "USER";
+
+  // 사업자로 가입하는 경우 사업자 정보 검증
+  if (userRole === "BUSINESS") {
+    if (!businessName || !businessNumber) {
+      throw new Error("BUSINESS_INFO_REQUIRED");
+    }
+
+    // 사업자등록번호 중복 검사
+    const existingBusiness = await Business.findOne({ businessNumber });
+    if (existingBusiness) {
+      throw new Error("BUSINESS_NUMBER_ALREADY_EXISTS");
+    }
+  }
+
   // User 인스턴스 생성 (passwordHash는 setPassword에서 설정)
   const user = new User({
     email: email.toLowerCase(),
-    displayName,
+    name,
     phoneNumber: phoneNumber || "",
-    date_of_birth: date_of_birth || null,
+    dateOfBirth: dateOfBirth || null,
     address: address || "",
-    profile_image: profile_image || "",
-    role: "USER",
+    profileImage: profileImage || "",
+    role: userRole,
     isActive: true
   });
 
@@ -46,9 +63,18 @@ const register = async (userData) => {
   await user.setPassword(password);
   await user.save();
 
+  // 사업자로 가입하는 경우 Business 모델에도 등록
+  if (userRole === "BUSINESS") {
+    await Business.create({
+      loginId: user._id,
+      businessName,
+      businessNumber
+    });
+  }
+
   return {
     user: user.toSafeJSON(),
-    message: "회원가입 완료"
+    message: userRole === "BUSINESS" ? "사업자 회원가입 완료" : "회원가입 완료"
   };
 };
 
@@ -131,7 +157,7 @@ const getMe = async (userId) => {
 
   // 역할에 따라 추가 데이터 반환
   if (user.role === "BUSINESS") {
-    const business = await Business.findOne({ login_id: user._id });
+    const business = await Business.findOne({ loginId: user._id });
     responseData.business = business || null;
   }
 
@@ -146,7 +172,7 @@ const logout = async (userId) => {
 
 // 사업자 신청
 const applyBusiness = async (userId, businessData) => {
-  const { business_name, business_number } = businessData;
+  const { businessName, businessNumber } = businessData;
 
   // 현재 사용자 정보 조회
   const user = await User.findById(userId);
@@ -160,16 +186,16 @@ const applyBusiness = async (userId, businessData) => {
   }
 
   // 이미 Business 문서가 존재하는지 확인
-  const existingBusiness = await Business.findOne({ login_id: userId });
+  const existingBusiness = await Business.findOne({ loginId: userId });
   if (existingBusiness) {
     throw new Error("ALREADY_APPLIED");
   }
 
   // Business 문서 생성
   await Business.create({
-    login_id: userId,
-    business_name,
-    business_number
+    loginId: userId,
+    businessName,
+    businessNumber
   });
 
   // User role을 BUSINESS로 변경 (승인 대기 상태는 Business 모델에서 관리)
@@ -219,7 +245,7 @@ const forgotPassword = async (email) => {
 
 // 프로필 수정
 const updateProfile = async (userId, profileData) => {
-  const { displayName, phoneNumber, date_of_birth, address, profile_image } = profileData;
+  const { name, phoneNumber, dateOfBirth, address, profileImage } = profileData;
 
   const user = await User.findById(userId);
   if (!user) {
@@ -227,11 +253,11 @@ const updateProfile = async (userId, profileData) => {
   }
 
   // 업데이트할 필드만 수정
-  if (displayName !== undefined) user.displayName = displayName;
+  if (name !== undefined) user.name = name;
   if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
-  if (date_of_birth !== undefined) user.date_of_birth = date_of_birth || null;
+  if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth || null;
   if (address !== undefined) user.address = address;
-  if (profile_image !== undefined) user.profile_image = profile_image;
+  if (profileImage !== undefined) user.profileImage = profileImage;
 
   await user.save();
 

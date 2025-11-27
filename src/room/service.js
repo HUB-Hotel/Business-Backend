@@ -31,8 +31,8 @@ function processImageUrls(room) {
   return roomObj;
 }
 
-// 숙소별 객실 목록 조회
-const getRoomsByLodging = async (lodgingId, userId) => {
+// 객실 목록 조회 (쿼리 파라미터로 lodgingId 전달)
+const getRooms = async (lodgingId, userId) => {
   const business = await Business.findOne({ login_id: userId });
   if (!business) {
     throw new Error("BUSINESS_NOT_FOUND");
@@ -261,7 +261,7 @@ const deleteRoom = async (roomId, userId) => {
 };
 
 module.exports = {
-  getRoomsByLodging,
+  getRooms,
   getRoomById,
   createRoom,
   updateRoom,

@@ -6,7 +6,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const userSchema = new mongoose.Schema(
   {
     // 🔐 기본 정보
-    displayName: {
+    name: {
       type: String,
       required: true,
       trim: true
@@ -31,10 +31,10 @@ const userSchema = new mongoose.Schema(
     },
 
     // 👤 개인정보
-    date_of_birth: {
+    dateOfBirth: {
       type: Date
     },
-    profile_image: {
+    profileImage: {
       type: String,
       trim: true,
       default: ""
@@ -78,7 +78,7 @@ const userSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: { createdAt: "created_on", updatedAt: "updated_on" }
+    timestamps: true
   }
 );
 

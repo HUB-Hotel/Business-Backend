@@ -55,7 +55,7 @@ const createReview = async (reviewData, userId) => {
 
   // 리뷰 정보와 함께 사용자 정보 포함하여 반환
   const populatedReview = await Review.findById(review._id)
-    .populate('user_id', 'displayName profile_image')
+    .populate('user_id', 'name profile_image')
     .populate('lodging_id', 'lodging_name')
     .lean();
 
@@ -162,7 +162,7 @@ const getBlockedReviews = async (userId) => {
     lodging_id: { $in: lodgingIds },
     status: 'blocked'
   })
-    .populate('user_id', 'displayName profile_image')
+    .populate('user_id', 'name profile_image')
     .populate('lodging_id', 'lodging_name')
     .sort({ blocked_at: -1 })
     .lean();
@@ -192,7 +192,7 @@ const getReviewsByLodging = async (lodgingId, filters) => {
   // 리뷰 조회
   const [reviews, total] = await Promise.all([
     Review.find(query)
-      .populate('user_id', 'displayName profile_image')
+      .populate('user_id', 'name profile_image')
       .populate('lodging_id', 'lodging_name')
       .populate({
         path: 'booking_id',
@@ -251,7 +251,7 @@ const getReviews = async (userId, filters) => {
   // 리뷰 조회
   const [reviews, total] = await Promise.all([
     Review.find(query)
-      .populate('user_id', 'displayName profile_image')
+      .populate('user_id', 'name profile_image')
       .populate('lodging_id', 'lodging_name')
       .populate({
         path: 'booking_id',
@@ -294,7 +294,7 @@ const getReviewById = async (reviewId, userId) => {
     _id: reviewId,
     lodging_id: { $in: lodgingIds }
   })
-    .populate('user_id', 'displayName profile_image')
+    .populate('user_id', 'name profile_image')
     .populate('lodging_id', 'lodging_name')
     .populate({
       path: 'booking_id',
@@ -342,7 +342,7 @@ const replyToReview = async (reviewId, reply, userId) => {
 
   // 답변 포함하여 반환
   const populatedReview = await Review.findById(review._id)
-    .populate('user_id', 'displayName profile_image')
+    .populate('user_id', 'name profile_image')
     .populate('lodging_id', 'lodging_name')
     .lean();
 
@@ -445,12 +445,12 @@ const getReports = async (filters) => {
         },
         {
           path: 'user_id',
-          select: 'displayName'
+          select: 'name'
         }
       ]
     })
     .populate('business_id', 'business_name')
-    .populate('reviewed_by', 'displayName')
+    .populate('reviewed_by', 'name')
     .sort({ reported_at: -1 })
     .skip(skip)
     .limit(parseInt(limit))

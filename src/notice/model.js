@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const noticeSchema = new mongoose.Schema(
   {
-    room_id: {
+    roomId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Room',
       required: true,
@@ -15,7 +15,7 @@ const noticeSchema = new mongoose.Schema(
       maxlength: 100,
       default: ""
     },
-    usage_guide: {
+    usageGuide: {
       type: String,
       trim: true,
       maxlength: 100,
