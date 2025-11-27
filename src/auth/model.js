@@ -6,11 +6,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const userSchema = new mongoose.Schema(
   {
     // 🔐 기본 정보
-    user_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      auto: true
-    },
-    user_name: {
+    displayName: {
       type: String,
       required: true,
       trim: true
@@ -23,12 +19,12 @@ const userSchema = new mongoose.Schema(
       match: [EMAIL_REGEX, "유효한 이메일"],
       unique: true
     },
-    phone: {
+    phoneNumber: {
       type: String,
       trim: true,
       default: ""
     },
-    password: {
+    passwordHash: {
       type: String,
       required: true,
       select: false
@@ -58,7 +54,7 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["active", "inactive", "suspended", "pending"],
+      enum: ["active", "banned", "pending"],
       default: "active",
       index: true
     },
@@ -70,11 +66,6 @@ const userSchema = new mongoose.Schema(
     },
     lastLoginAttempt: {
       type: Date
-    },
-    tokenVersion: {
-      type: Number,
-      default: 0,
-      index: true
     }
   },
   {
