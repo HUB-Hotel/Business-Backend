@@ -2,21 +2,21 @@ const mongoose = require("mongoose");
 
 const reviewSchema = new mongoose.Schema(
   {
-    lodging_id: {
+    lodgingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Lodging',
       required: true,
       index: true
     },
     
-    user_id: {
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
       index: true
     },
     
-    booking_id: {
+    bookingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
       required: true,
@@ -50,20 +50,32 @@ const reviewSchema = new mongoose.Schema(
       index: true
     },
     
-    blocked_at: {
+    blockedAt: {
+      type: Date,
+      default: null
+    },
+    
+    reply: {
+      type: String,
+      trim: true,
+      default: null,
+      maxlength: 2000
+    },
+    
+    replyDate: {
       type: Date,
       default: null
     }
   },
   {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    timestamps: true,
     collection: 'reviews'
   }
 );
 
-reviewSchema.index({ lodging_id: 1, status: 1, created_at: -1 });
-reviewSchema.index({ user_id: 1, created_at: -1 });
-reviewSchema.index({ booking_id: 1 }, { unique: true });
+reviewSchema.index({ lodgingId: 1, status: 1, createdAt: -1 });
+reviewSchema.index({ userId: 1, createdAt: -1 });
+reviewSchema.index({ bookingId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Review', reviewSchema);
 
