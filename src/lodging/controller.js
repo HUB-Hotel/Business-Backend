@@ -39,21 +39,20 @@ const getLodgingById = async (req, res) => {
 const createLodging = async (req, res) => {
   try {
     const {
-      lodging_name,
+      lodgingName,
       address,
-      star_rating,
+      starRating,
       description,
       images,
       country,
       category,
-      user_name,
       hashtag,
-      amenity_name,
-      amenity_detail
+      amenityName,
+      amenityDetail
     } = req.body;
 
     // 필수 필드 검증
-    if (!lodging_name || !address || !star_rating || !description || !images || !country || !category || !user_name) {
+    if (!lodgingName || !address || !starRating || !description || !images || !country || !category) {
       return res.status(400).json(errorResponse("필수 필드가 누락되었습니다.", 400));
     }
 
@@ -62,8 +61,8 @@ const createLodging = async (req, res) => {
       return res.status(400).json(errorResponse("이미지는 최소 1개 이상 필요합니다.", 400));
     }
 
-    // star_rating 범위 검증
-    if (star_rating < 1 || star_rating > 5) {
+    // starRating 범위 검증
+    if (starRating < 1 || starRating > 5) {
       return res.status(400).json(errorResponse("별점은 1~5 사이의 값이어야 합니다.", 400));
     }
 
@@ -74,17 +73,16 @@ const createLodging = async (req, res) => {
     }
 
     const result = await lodgingService.createLodging({
-      lodging_name,
+      lodgingName,
       address,
-      star_rating,
+      starRating,
       description,
       images,
       country,
       category,
-      user_name,
       hashtag,
-      amenity_name,
-      amenity_detail
+      amenityName,
+      amenityDetail
     }, req.user.id);
 
     return res.status(201).json(successResponse(result, "숙소가 생성되었습니다.", 201));
@@ -104,21 +102,20 @@ const updateLodging = async (req, res) => {
     }
 
     const {
-      lodging_name,
+      lodgingName,
       address,
-      star_rating,
+      starRating,
       description,
       images,
       country,
       category,
-      user_name,
       hashtag,
-      amenity_name,
-      amenity_detail
+      amenityName,
+      amenityDetail
     } = req.body;
 
     // 유효성 검증
-    if (star_rating !== undefined && (star_rating < 1 || star_rating > 5)) {
+    if (starRating !== undefined && (starRating < 1 || starRating > 5)) {
       return res.status(400).json(errorResponse("별점은 1~5 사이의 값이어야 합니다.", 400));
     }
 
@@ -128,17 +125,16 @@ const updateLodging = async (req, res) => {
     }
 
     const result = await lodgingService.updateLodging(req.params.id, {
-      lodging_name,
+      lodgingName,
       address,
-      star_rating,
+      starRating,
       description,
       images,
       country,
       category,
-      user_name,
       hashtag,
-      amenity_name,
-      amenity_detail
+      amenityName,
+      amenityDetail
     }, req.user.id);
 
     return res.status(200).json(successResponse(result, "숙소가 수정되었습니다.", 200));

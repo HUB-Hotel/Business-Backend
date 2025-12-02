@@ -2,21 +2,21 @@ const mongoose = require("mongoose");
 
 const bookingSchema = new mongoose.Schema(
   {
-    room_id: {
+    roomId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Room',  
       required: true,
       index: true
     },
     
-    user_id: {
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
       index: true
     },
     
-    business_id: {
+    businessId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Business',
       required: true,
@@ -36,37 +36,37 @@ const bookingSchema = new mongoose.Schema(
       min: 0
     },
     
-    checkin_date: {
+    checkinDate: {
       type: Date,
       required: true
     },
     
-    checkout_date: {
+    checkoutDate: {
       type: Date,
       required: true
     },
     
-    booking_date: {
+    bookingDate: {
       type: Date,
       required: true,
       default: Date.now
     },
     
-    booking_status: {
+    bookingStatus: {
       type: String,
       enum: ['pending', 'confirmed', 'cancelled', 'completed'],
       default: 'pending',
       index: true
     },
     
-    cancellation_reason: {
+    cancellationReason: {
       type: String,
       trim: true,
       default: null
-      // 취소 사유 (booking_status가 'cancelled'일 때만 사용)
+      // 취소 사유 (bookingStatus가 'cancelled'일 때만 사용)
     },
     
-    payment_status: {
+    paymentStatus: {
       type: String,
       enum: ['pending', 'paid', 'refunded', 'failed'],
       default: 'pending',
@@ -87,12 +87,12 @@ const bookingSchema = new mongoose.Schema(
 );
 
 // 인덱스
-bookingSchema.index({ business_id: 1, createdAt: -1 });
-bookingSchema.index({ room_id: 1, booking_status: 1 });
-bookingSchema.index({ checkin_date: 1, checkout_date: 1 });
-bookingSchema.index({ booking_status: 1 });
+bookingSchema.index({ businessId: 1, createdAt: -1 });
+bookingSchema.index({ roomId: 1, bookingStatus: 1 });
+bookingSchema.index({ checkinDate: 1, checkoutDate: 1 });
+bookingSchema.index({ bookingStatus: 1 });
 // 날짜 겹침 쿼리 최적화를 위한 복합 인덱스
-bookingSchema.index({ room_id: 1, booking_status: 1, checkin_date: 1, checkout_date: 1 });
+bookingSchema.index({ roomId: 1, bookingStatus: 1, checkinDate: 1, checkoutDate: 1 });
 
 module.exports = mongoose.model('Booking', bookingSchema);
 

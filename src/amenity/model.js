@@ -2,13 +2,13 @@ const mongoose = require("mongoose");
 
 const amenitySchema = new mongoose.Schema(
   {
-    amenity_name: {
+    amenityName: {
       type: String,
       required: true,
       trim: true,
       maxlength: 50
     },
-    amenity_detail: {
+    amenityDetail: {
       type: String,
       trim: true,
       maxlength: 100,

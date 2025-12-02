@@ -4,27 +4,40 @@ const { successResponse, errorResponse } = require("../common/response");
 // 회원가입
 const register = async (req, res) => {
   try {
-    const { email, password, user_name, phone, date_of_birth, address, profile_image } = req.body;
+    const { email, password, name, phoneNumber, dateOfBirth, address, profileImage, role, businessName, businessNumber } = req.body;
 
     // 필수 필드 검증
-    if (!email || !password || !user_name) {
+    if (!email || !password || !name) {
       return res.status(400).json(errorResponse("이메일/비밀번호/이름은 필수입니다.", 400));
+    }
+
+    // 사업자로 가입하는 경우 사업자 정보 필수
+    if (role === "BUSINESS") {
+      if (!businessName || !businessNumber) {
+        return res.status(400).json(errorResponse("사업자로 가입하는 경우 사업자명과 사업자등록번호는 필수입니다.", 400));
+      }
     }
 
     const result = await authService.register({
       email,
       password,
-      user_name,
-      phone,
-      date_of_birth,
+      name,
+      phoneNumber,
+      dateOfBirth,
       address,
-      profile_image
+      profileImage,
+      role,
+      businessName,
+      businessNumber
     });
 
     return res.status(201).json(successResponse(result, "회원가입 완료", 201));
   } catch (error) {
     if (error.message === "EMAIL_ALREADY_EXISTS") {
       return res.status(400).json(errorResponse("이미 가입된 이메일", 400));
+    }
+    if (error.message === "BUSINESS_NUMBER_ALREADY_EXISTS") {
+      return res.status(400).json(errorResponse("이미 등록된 사업자등록번호입니다.", 400));
     }
     return res.status(500).json(errorResponse("회원가입 실패", 500, error.message));
   }
@@ -66,12 +79,9 @@ const login = async (req, res) => {
       return res.status(403).json(errorResponse("관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.", 403));
     }
     if (error.message === "ACCOUNT_LOCKED") {
-      const remainMs = Math.max(0, authService.LOCKOUT_DURATION_MS - Date.now());
-      const remainMin = Math.ceil(remainMs / 60000);
+      const remainMin = Math.ceil(authService.LOCKOUT_DURATION_MS / 60000);
       return res.status(423).json(errorResponse(
-        remainMs > 0
-          ? `계정이 잠금 상태입니다. 약 ${remainMin}분 후 다시 시도해 주세요.`
-          : "계정이 잠금 상태입니다. 관리자에게 문의하세요.",
+        `계정이 잠금 상태입니다. ${remainMin}분 후 다시 시도해 주세요.`,
         423
       ));
     }
@@ -113,14 +123,14 @@ const logout = async (req, res) => {
 // 사업자 신청
 const applyBusiness = async (req, res) => {
   try {
-    const { business_name, business_number } = req.body;
+    const { businessName, businessNumber } = req.body;
 
     // 필수 필드 검증
-    if (!business_name || !business_number) {
+    if (!businessName || !businessNumber) {
       return res.status(400).json(errorResponse("사업자명과 사업자등록번호는 필수입니다.", 400));
     }
 
-    const result = await authService.applyBusiness(req.user.id, { business_name, business_number });
+    const result = await authService.applyBusiness(req.user.id, { businessName, businessNumber });
 
     return res.status(201).json(successResponse(result, "사업자 신청이 완료되었습니다.", 201));
   } catch (error) {
@@ -133,10 +143,121 @@ const applyBusiness = async (req, res) => {
     if (error.message === "ALREADY_APPLIED") {
       return res.status(400).json(errorResponse("이미 사업자 신청이 완료되었습니다.", 400));
     }
-    if (error.code === 11000 && error.keyPattern?.business_number) {
+    if (error.code === 11000 && error.keyPattern?.businessNumber) {
       return res.status(400).json(errorResponse("이미 등록된 사업자등록번호입니다.", 400));
     }
     return res.status(500).json(errorResponse("사업자 신청 실패", 500, error.message));
+  }
+};
+
+// 비밀번호 변경
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json(errorResponse("현재 비밀번호와 새 비밀번호는 필수입니다.", 400));
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json(errorResponse("새 비밀번호는 최소 6자 이상이어야 합니다.", 400));
+    }
+
+    const result = await authService.changePassword(req.user.id, currentPassword, newPassword);
+
+    return res.status(200).json(successResponse(result, "비밀번호가 변경되었습니다.", 200));
+  } catch (error) {
+    if (error.message === "USER_NOT_FOUND") {
+      return res.status(404).json(errorResponse("사용자 정보를 찾을 수 없습니다.", 404));
+    }
+    if (error.message === "INVALID_CURRENT_PASSWORD") {
+      return res.status(400).json(errorResponse("현재 비밀번호가 올바르지 않습니다.", 400));
+    }
+    return res.status(500).json(errorResponse("비밀번호 변경 실패", 500, error.message));
+  }
+};
+
+// 비밀번호 찾기
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json(errorResponse("이메일은 필수입니다.", 400));
+    }
+
+    const result = await authService.forgotPassword(email);
+
+    return res.status(200).json(successResponse(result, "SUCCESS", 200));
+  } catch (error) {
+    return res.status(500).json(errorResponse("비밀번호 찾기 실패", 500, error.message));
+  }
+};
+
+// 프로필 수정
+const updateProfile = async (req, res) => {
+  try {
+    const { name, phoneNumber, dateOfBirth, address, profileImage } = req.body;
+
+    const result = await authService.updateProfile(req.user.id, {
+      name,
+      phoneNumber,
+      dateOfBirth,
+      address,
+      profileImage
+    });
+
+    return res.status(200).json(successResponse(result, "프로필이 수정되었습니다.", 200));
+  } catch (error) {
+    if (error.message === "USER_NOT_FOUND") {
+      return res.status(404).json(errorResponse("사용자 정보를 찾을 수 없습니다.", 404));
+    }
+    return res.status(500).json(errorResponse("프로필 수정 실패", 500, error.message));
+  }
+};
+
+// 카카오 로그인
+const kakaoLogin = async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json(errorResponse("카카오 액세스 토큰이 필요합니다.", 400));
+    }
+
+    const result = await authService.kakaoLogin(accessToken);
+
+    // 로그인 성공 시 쿠키 설정
+    if (result.token) {
+      res.cookie('token', result.token, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+    }
+
+    return res.status(200).json(successResponse(result, "카카오 로그인 성공", 200));
+  } catch (error) {
+    if (error.message === "KAKAO_LOGIN_NOT_IMPLEMENTED") {
+      return res.status(501).json(errorResponse("카카오 로그인 기능이 아직 구현되지 않았습니다.", 501));
+    }
+    return res.status(500).json(errorResponse("카카오 로그인 실패", 500, error.message));
+  }
+};
+
+// 카카오 회원가입 완료
+const completeKakaoSignup = async (req, res) => {
+  try {
+    const result = await authService.completeKakaoSignup(req.body);
+
+    return res.status(200).json(successResponse(result, "카카오 회원가입이 완료되었습니다.", 200));
+  } catch (error) {
+    if (error.message === "KAKAO_SIGNUP_NOT_IMPLEMENTED") {
+      return res.status(501).json(errorResponse("카카오 회원가입 기능이 아직 구현되지 않았습니다.", 501));
+    }
+    return res.status(500).json(errorResponse("카카오 회원가입 실패", 500, error.message));
   }
 };
 
@@ -145,6 +266,11 @@ module.exports = {
   login,
   getMe,
   logout,
-  applyBusiness
+  applyBusiness,
+  changePassword,
+  forgotPassword,
+  updateProfile,
+  kakaoLogin,
+  completeKakaoSignup
 };
 

@@ -2,52 +2,52 @@ const mongoose = require("mongoose");
 
 const roomSchema = new mongoose.Schema(
   {
-    lodging_id: {
+    lodgingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Lodging',
       required: true,
       index: true
     },
     
-    room_name: {
+    roomName: {
       type: String,
       required: true,
       trim: true,
       maxlength: 100
     },
     
-    room_size: {
+    roomSize: {
       type: String,
       required: true,
       trim: true,
       maxlength: 50
     },
     
-    capacity_min: {
+    capacityMin: {
       type: Number,
       required: true,
       min: 1
     },
     
-    capacity_max: {
+    capacityMax: {
       type: Number,
       required: true,
       min: 1
     },
     
-    check_in_time: {
+    checkInTime: {
       type: String,
       required: true,
       default: "15:00"
     },
     
-    check_out_time: {
+    checkOutTime: {
       type: String,
       required: true,
       default: "11:00"
     },
     
-    room_image: {
+    roomImage: {
       type: String,
       trim: true
     },
@@ -58,25 +58,32 @@ const roomSchema = new mongoose.Schema(
       min: 0
     },
     
-    count_room: {
+    countRoom: {
       type: Number,
       required: true,
       min: 1,
       default: 1
     },
     
-    owner_discount: {
+    ownerDiscount: {
       type: Number,
       default: 0,
       min: 0,
       max: 100
     },
     
-    platform_discount: {
+    platformDiscount: {
       type: Number,
       default: 0,
       min: 0,
       max: 100
+    },
+    
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'maintenance'],
+      default: 'active',
+      index: true
     }
   },
   {
@@ -85,7 +92,7 @@ const roomSchema = new mongoose.Schema(
   }
 );
 
-roomSchema.index({ lodging_id: 1, createdAt: -1 });
+roomSchema.index({ lodgingId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Room', roomSchema);
 

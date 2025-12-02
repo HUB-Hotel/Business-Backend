@@ -31,8 +31,8 @@ function processImageUrls(room) {
   return roomObj;
 }
 
-// 숙소별 객실 목록 조회
-const getRoomsByLodging = async (lodgingId, userId) => {
+// 객실 목록 조회 (쿼리 파라미터로 lodgingId 전달)
+const getRooms = async (lodgingId, userId) => {
   const business = await Business.findOne({ login_id: userId });
   if (!business) {
     throw new Error("BUSINESS_NOT_FOUND");
@@ -208,6 +208,29 @@ const updateRoom = async (roomId, roomData, userId) => {
   return updated;
 };
 
+// 객실 상태 변경
+const updateRoomStatus = async (roomId, status, userId) => {
+  const room = await Room.findById(roomId);
+  if (!room) {
+    throw new Error("ROOM_NOT_FOUND");
+  }
+
+  const lodging = await Lodging.findById(room.lodging_id);
+  if (!lodging) {
+    throw new Error("LODGING_NOT_FOUND");
+  }
+
+  const business = await Business.findOne({ login_id: userId });
+  if (!business || String(lodging.business_id) !== String(business._id)) {
+    throw new Error("UNAUTHORIZED");
+  }
+
+  room.status = status;
+  await room.save();
+
+  return room;
+};
+
 // 객실 삭제
 const deleteRoom = async (roomId, userId) => {
   const room = await Room.findById(roomId).populate('lodging_id');
@@ -238,10 +261,11 @@ const deleteRoom = async (roomId, userId) => {
 };
 
 module.exports = {
-  getRoomsByLodging,
+  getRooms,
   getRoomById,
   createRoom,
   updateRoom,
-  deleteRoom
+  deleteRoom,
+  updateRoomStatus
 };
 
