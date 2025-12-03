@@ -5,6 +5,8 @@ const { connectDB } = require('../src/config/db');
 // 모델 import
 const User = require('../src/auth/model');
 const Business = require('../src/auth/business');
+const PaymentType = require('../src/booking/paymentType');
+const PaymentType = require('../src/booking/paymentType');
 
 // 메인 함수
 const seedDatabase = async () => {
@@ -39,6 +41,28 @@ const seedDatabase = async () => {
     console.log('  ✓ user 삭제 완료');
     
     console.log('✅ 기존 데이터 삭제 완료\n');
+
+    // ===== 0. 기본 결제 수단 생성 =====
+    console.log('💳 기본 결제 수단 생성 중...');
+    
+    const paymentTypes = [
+      { type: '신용카드', typeCode: 1 },
+      { type: '체크카드', typeCode: 2 },
+      { type: '하이브리드카드', typeCode: 3 }
+    ];
+
+    for (const paymentTypeData of paymentTypes) {
+      let paymentType = await PaymentType.findOne({ typeCode: paymentTypeData.typeCode });
+      if (!paymentType) {
+        paymentType = await PaymentType.create(paymentTypeData);
+        console.log(`  ✓ ${paymentTypeData.type} 생성 완료 (코드: ${paymentTypeData.typeCode})`);
+      } else {
+        // 이미 존재하면 업데이트하지 않고 스킵
+        console.log(`  ⚠️  ${paymentTypeData.type} 이미 존재 (코드: ${paymentTypeData.typeCode})`);
+      }
+    }
+
+    console.log(`✅ 기본 결제 수단 생성 완료 (${paymentTypes.length}개)\n`);
 
     // ===== 1. Business 데이터 정의 =====
     console.log('👤 사업자 데이터 준비 중...');
@@ -243,6 +267,7 @@ const seedDatabase = async () => {
     console.log('\n🎉 초기 데이터 삽입 완료!');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`📊 생성된 데이터 요약:`);
+    console.log(`  • 결제 수단: ${await PaymentType.countDocuments()}개`);
     console.log(`  • 사용자: ${await User.countDocuments({ role: 'user' })}명`);
     console.log(`  • 사업자: ${await Business.countDocuments()}명`);
     console.log(`  • 사업자 계정: ${await User.countDocuments({ role: 'business' })}명`);

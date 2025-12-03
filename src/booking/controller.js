@@ -146,6 +146,11 @@ const updateBookingStatus = async (req, res) => {
       return res.status(400).json(errorResponse("잘못된 id 형식입니다.", 400));
     }
 
+    // req.body가 없는 경우 처리
+    if (!req.body) {
+      return res.status(400).json(errorResponse("요청 본문이 없습니다.", 400));
+    }
+
     const { status, cancellationReason } = req.body;
 
     if (!status || !['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
@@ -173,6 +178,11 @@ const updatePaymentStatus = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json(errorResponse("잘못된 id 형식입니다.", 400));
+    }
+
+    // req.body가 없는 경우 처리
+    if (!req.body) {
+      return res.status(400).json(errorResponse("요청 본문이 없습니다.", 400));
     }
 
     const { paymentStatus } = req.body;
