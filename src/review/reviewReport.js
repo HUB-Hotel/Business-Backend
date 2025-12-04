@@ -11,9 +11,9 @@ const reviewReportSchema = new mongoose.Schema(
     },
     
     // 신고한 사업자
-    businessId: {
+    businessUserId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Business',
+      ref: 'BusinessUser',
       required: true,
       index: true
     },
@@ -51,7 +51,7 @@ const reviewReportSchema = new mongoose.Schema(
     // 처리한 관리자 ID
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'BusinessUser',
       default: null
     }
   },
@@ -62,8 +62,8 @@ const reviewReportSchema = new mongoose.Schema(
 );
 
 // 복합 인덱스
-reviewReportSchema.index({ businessId: 1, status: 1, reportedAt: -1 });
-reviewReportSchema.index({ reviewId: 1, businessId: 1 }, { unique: true }); // 같은 리뷰에 대한 중복 신고 방지
+reviewReportSchema.index({ businessUserId: 1, status: 1, reportedAt: -1 });
+reviewReportSchema.index({ reviewId: 1, businessUserId: 1 }, { unique: true }); // 같은 리뷰에 대한 중복 신고 방지
 
 module.exports = mongoose.model('ReviewReport', reviewReportSchema);
 

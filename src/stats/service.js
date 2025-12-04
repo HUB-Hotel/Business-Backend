@@ -2,12 +2,12 @@ const Booking = require("../booking/model");
 const Payment = require("../booking/payment");
 const Lodging = require("../lodging/model");
 const Room = require("../room/model");
-const Business = require("../auth/business");
+const BusinessUser = require("../auth/model");
 
 // 대시보드 통계
 const getDashboardStats = async (userId) => {
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
@@ -30,22 +30,22 @@ const getDashboardStats = async (userId) => {
   lastMonthEnd.setHours(23, 59, 59, 999);
 
   // 기본 통계
-  const lodgingIds = await Lodging.find({ businessId: business._id }).distinct('_id');
+  const lodgingIds = await Lodging.find({ businessId: user._id }).distinct('_id');
   
   const [totalLodgings, totalRooms, todayBookings, pendingBookings, activeRooms] = await Promise.all([
-    Lodging.countDocuments({ businessId: business._id }),
+    Lodging.countDocuments({ businessId: user._id }),
     Room.countDocuments({ lodgingId: { $in: lodgingIds } }),
     Booking.countDocuments({
-      businessId: business._id,
+      businessUserId: user._id,
       createdAt: { $gte: today }
     }),
     Booking.countDocuments({
-      businessId: business._id,
+      businessUserId: user._id,
       bookingStatus: 'pending'
     }),
     // 활성객실: 현재 체크인되어 있는 예약 수
     Booking.countDocuments({
-      businessId: business._id,
+      businessUserId: user._id,
       bookingStatus: { $in: ['confirmed', 'completed'] },
       checkinDate: { $lte: today },
       checkoutDate: { $gte: today }
@@ -59,7 +59,7 @@ const getDashboardStats = async (userId) => {
   lastMonthTodayEnd.setHours(23, 59, 59, 999);
   
   const lastMonthTodayBookings = await Booking.countDocuments({
-    businessId: business._id,
+    businessUserId: user._id,
     createdAt: { 
       $gte: lastMonthTodayStart, 
       $lte: lastMonthTodayEnd 
@@ -75,7 +75,7 @@ const getDashboardStats = async (userId) => {
   const lastMonthLastDay = new Date(lastMonthEnd);
   lastMonthLastDay.setHours(0, 0, 0, 0);
   const lastMonthActiveRooms = await Booking.countDocuments({
-    businessId: business._id,
+    businessUserId: user._id,
     bookingStatus: { $in: ['confirmed', 'completed'] },
     checkinDate: { $lte: lastMonthLastDay },
     checkoutDate: { $gte: lastMonthLastDay }
@@ -86,7 +86,7 @@ const getDashboardStats = async (userId) => {
 
   // 총매출 (전체 기간 누적 매출)
   const allBookings = await Booking.find({
-    businessId: business._id,
+    businessUserId: user._id,
     bookingStatus: { $in: ['confirmed', 'completed'] }
   }).select('_id').lean();
 
@@ -99,7 +99,7 @@ const getDashboardStats = async (userId) => {
 
   // 매출 통계 (이번 달)
   const thisMonthBookings = await Booking.find({
-    businessId: business._id,
+    businessUserId: user._id,
     bookingStatus: { $in: ['confirmed', 'completed'] },
     createdAt: { $gte: thisMonthStart }
   }).select('_id').lean();
@@ -116,7 +116,7 @@ const getDashboardStats = async (userId) => {
 
   // 전월 매출
   const lastMonthBookings = await Booking.find({
-    businessId: business._id,
+    businessUserId: user._id,
     bookingStatus: { $in: ['confirmed', 'completed'] },
     createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd }
   }).select('_id').lean();
@@ -135,7 +135,7 @@ const getDashboardStats = async (userId) => {
 
   // 신규 회원 (이번 달에 예약한 새로운 사용자 수)
   const thisMonthUniqueUsers = await Booking.distinct('userId', {
-    businessId: business._id,
+    businessUserId: user._id,
     createdAt: { $gte: thisMonthStart }
   });
 
@@ -143,7 +143,7 @@ const getDashboardStats = async (userId) => {
 
   // 전월 신규 회원 수
   const lastMonthUniqueUsers = await Booking.distinct('userId', {
-    businessId: business._id,
+    businessUserId: user._id,
     createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd }
   });
 
@@ -163,7 +163,7 @@ const getDashboardStats = async (userId) => {
   const monthlyStats = await Booking.aggregate([
     {
       $match: {
-        businessId: business._id,
+        businessUserId: user._id,
         bookingStatus: { $in: ['confirmed', 'completed'] },
         createdAt: { $gte: sixMonthsAgo }
       }
@@ -195,9 +195,9 @@ const getDashboardStats = async (userId) => {
 
   // 최근 예약 정보 (최근 10개)
   const recentBookings = await Booking.find({
-    businessId: business._id
+    businessUserId: user._id
   })
-    .populate('roomId', 'roomName lodgingId')
+    .populate('roomId', 'name lodgingId')
     .populate('userId', 'name email')
     .sort({ bookingDate: -1 })
     .limit(10)
@@ -206,7 +206,7 @@ const getDashboardStats = async (userId) => {
   // 최근 예약 정보 포맷팅
   const formattedRecentBookings = recentBookings.map(booking => ({
     bookingId: booking._id,
-    roomName: booking.roomId?.roomName || 'Unknown',
+    roomName: booking.roomId?.name || 'Unknown',
     userName: booking.userId?.name || 'Unknown',
     userEmail: booking.userId?.email || '',
     checkinDate: booking.checkinDate,
@@ -217,24 +217,22 @@ const getDashboardStats = async (userId) => {
     child: booking.child
   }));
 
+  // 호텔 정보 조회 (getLodgings와 동일한 형식)
+  const lodging = await Lodging.findOne({ businessId: user._id }).lean();
+  const hotelInfo = lodging ? await require("../lodging/service").getLodgings(userId) : null;
+
+  // chartData 형식 변환
+  const chartData = {
+    labels: revenueTrend.map(item => item.month),
+    revenue: revenueTrend.map(item => item.revenue),
+    bookings: revenueTrend.map(item => item.bookings)
+  };
+
+  // 프론트엔드 요구사항에 맞게 응답 형식 변환
   return {
-    overview: {
-      totalLodgings,
-      totalRooms,
-      todayBookings,
-      todayBookingsChange,
-      pendingBookings,
-      totalRevenue: totalRevenue || 0,
-      totalRevenueChange,
-      activeRooms,
-      activeRoomsChange,
-      newMembers,
-      newMembersChange,
-      thisMonthRevenue: thisMonthRevenue.total || 0,
-      thisMonthBookings: thisMonthRevenue.count || 0
-    },
-    revenueTrend: revenueTrend,
-    recentBookings: formattedRecentBookings
+    hotel: hotelInfo,
+    recentBookings: formattedRecentBookings,
+    chartData: chartData
   };
 };
 
@@ -278,16 +276,16 @@ const getPeriodDates = (period = 'month') => {
 
 // 통계 조회 (쿼리 파라미터 기반)
 const getStatistics = async (userId, params) => {
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   // 기본 통계 (대시보드와 유사하지만 쿼리 파라미터로 필터링 가능)
-  const lodgingIds = await Lodging.find({ businessId: business._id }).distinct('_id');
+  const lodgingIds = await Lodging.find({ businessId: user._id }).distinct('_id');
   
   const [totalLodgings, totalRooms] = await Promise.all([
-    Lodging.countDocuments({ businessId: business._id }),
+    Lodging.countDocuments({ businessId: user._id }),
     Room.countDocuments({ lodgingId: { $in: lodgingIds } })
   ]);
 
@@ -299,15 +297,15 @@ const getStatistics = async (userId, params) => {
 
 // 매출 통계
 const getRevenueStats = async (userId, period = 'month') => {
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const { startDate, endDate } = getPeriodDates(period);
 
   const bookings = await Booking.find({
-    businessId: business._id,
+    businessUserId: user._id,
     bookingStatus: { $in: ['confirmed', 'completed'] },
     createdAt: { $gte: startDate, $lte: endDate }
   }).select('_id').lean();
@@ -325,7 +323,7 @@ const getRevenueStats = async (userId, period = 'month') => {
   const dailyRevenue = await Booking.aggregate([
     {
       $match: {
-        businessId: business._id,
+        businessUserId: user._id,
         bookingStatus: { $in: ['confirmed', 'completed'] },
         createdAt: { $gte: startDate, $lte: endDate }
       }
@@ -352,19 +350,28 @@ const getRevenueStats = async (userId, period = 'month') => {
     })
   );
 
+  // 프론트엔드 요구사항에 맞게 응답 형식 변환
   return {
-    period,
-    totalRevenue,
-    totalBookings,
-    averageRevenue: Math.round(averageRevenue),
-    dailyRevenue: dailyRevenueWithAmount
+    labels: dailyRevenueWithAmount.map(item => item.date),
+    revenue: dailyRevenueWithAmount.map(item => item.revenue),
+    bookings: dailyRevenueWithAmount.map(item => {
+      // 해당 날짜의 예약 수 계산
+      const dayBookings = bookings.filter(b => {
+        const bookingDate = new Date(b.createdAt);
+        const dateStr = period === 'year' 
+          ? `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}`
+          : `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}-${String(bookingDate.getDate()).padStart(2, '0')}`;
+        return dateStr === item.date;
+      });
+      return dayBookings.length;
+    })
   };
 };
 
 // 예약 통계
 const getBookingStats = async (userId, period = 'month') => {
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
@@ -372,13 +379,13 @@ const getBookingStats = async (userId, period = 'month') => {
 
   const [totalBookings, byStatus] = await Promise.all([
     Booking.countDocuments({
-      businessId: business._id,
+      businessUserId: user._id,
       createdAt: { $gte: startDate, $lte: endDate }
     }),
     Booking.aggregate([
       {
         $match: {
-          businessId: business._id,
+          businessUserId: user._id,
           createdAt: { $gte: startDate, $lte: endDate }
         }
       },
@@ -408,7 +415,7 @@ const getBookingStats = async (userId, period = 'month') => {
   const dailyBookings = await Booking.aggregate([
     {
       $match: {
-        businessId: business._id,
+        businessUserId: user._id,
         createdAt: { $gte: startDate, $lte: endDate }
       }
     },
@@ -421,31 +428,30 @@ const getBookingStats = async (userId, period = 'month') => {
     { $sort: { _id: 1 } }
   ]);
 
+  // 프론트엔드 요구사항에 맞게 응답 형식 변환
   return {
-    period,
-    totalBookings,
-    byStatus: statusCounts,
-    dailyBookings: dailyBookings.map(d => ({ date: d._id, count: d.count }))
+    labels: dailyBookings.map(d => d._id),
+    data: dailyBookings.map(d => d.count)
   };
 };
 
 // 점유율 통계
 const getOccupancyStats = async (userId, period = 'month') => {
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const { startDate, endDate } = getPeriodDates(period);
 
   // 전체 객실 수
-  const lodgingIds = await Lodging.find({ businessId: business._id }).distinct('_id');
+  const lodgingIds = await Lodging.find({ businessId: user._id }).distinct('_id');
   const rooms = await Room.find({ lodgingId: { $in: lodgingIds } }).lean();
-  const totalRooms = rooms.reduce((sum, r) => sum + (r.countRoom || 1), 0);
+  const totalRooms = rooms.reduce((sum, r) => sum + (r.quantity || r.countRoom || 1), 0);
 
   // 기간 내 예약된 객실 수 (확정 및 완료된 예약만)
   const bookings = await Booking.find({
-    businessId: business._id,
+    businessUserId: user._id,
     bookingStatus: { $in: ['confirmed', 'completed'] },
     checkinDate: { $lte: endDate },
     checkoutDate: { $gte: startDate }
@@ -460,11 +466,11 @@ const getOccupancyStats = async (userId, period = 'month') => {
   const lodgingOccupancy = await Promise.all(
     lodgingIds.map(async (lodgingId) => {
       const lodgingRooms = await Room.find({ lodgingId: lodgingId }).lean();
-      const lodgingTotalRooms = lodgingRooms.reduce((sum, r) => sum + (r.countRoom || 1), 0);
+      const lodgingTotalRooms = lodgingRooms.reduce((sum, r) => sum + (r.quantity || r.countRoom || 1), 0);
       const lodgingRoomIds = lodgingRooms.map(r => r._id);
       
       const lodgingBookings = await Booking.countDocuments({
-        businessId: business._id,
+        businessUserId: user._id,
         roomId: { $in: lodgingRoomIds },
         bookingStatus: { $in: ['confirmed', 'completed'] },
         checkinDate: { $lte: endDate },
@@ -475,7 +481,7 @@ const getOccupancyStats = async (userId, period = 'month') => {
         ? (lodgingBookings / lodgingTotalRooms) * 100 
         : 0;
 
-      const lodging = await Lodging.findById(lodgingId).select('lodgingName').lean();
+      const lodging = await Lodging.findById(lodgingId).select('name').lean();
 
       return {
         lodgingId,
@@ -487,12 +493,33 @@ const getOccupancyStats = async (userId, period = 'month') => {
     })
   );
 
+  // 일별 점유율 계산
+  const dailyOccupancy = await Booking.aggregate([
+    {
+      $match: {
+        businessUserId: user._id,
+        bookingStatus: { $in: ['confirmed', 'completed'] },
+        checkinDate: { $lte: endDate },
+        checkoutDate: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: period === 'year' ? '%Y-%m' : '%Y-%m-%d', date: '$checkinDate' } },
+        count: { $sum: 1 }
+      }
+    },
+    { $sort: { _id: 1 } }
+  ]);
+
+  // 프론트엔드 요구사항에 맞게 응답 형식 변환
   return {
-    period,
-    totalRooms,
-    occupiedRooms,
-    occupancyRate: Math.round(occupancyRate * 10) / 10,
-    byLodging: lodgingOccupancy
+    labels: dailyOccupancy.map(d => d._id),
+    data: dailyOccupancy.map(d => {
+      // 점유율 계산 (예약된 객실 수 / 전체 객실 수)
+      const rate = totalRooms > 0 ? (d.count / totalRooms) * 100 : 0;
+      return Math.round(rate * 10) / 10;
+    })
   };
 };
 

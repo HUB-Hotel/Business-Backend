@@ -9,11 +9,18 @@ const roomSchema = new mongoose.Schema(
       index: true
     },
     
-    roomName: {
+    name: {
       type: String,
       required: true,
       trim: true,
       maxlength: 100
+    },
+    
+    type: {
+      type: String,
+      enum: ['standard', 'deluxe', 'suite'],
+      default: 'standard',
+      trim: true
     },
     
     roomSize: {
@@ -29,7 +36,7 @@ const roomSchema = new mongoose.Schema(
       min: 1
     },
     
-    capacityMax: {
+    maxGuests: {
       type: Number,
       required: true,
       min: 1
@@ -47,9 +54,22 @@ const roomSchema = new mongoose.Schema(
       default: "11:00"
     },
     
-    roomImage: {
-      type: String,
+    images: {
+      type: [String],
+      default: [],
       trim: true
+    },
+    
+    amenities: {
+      type: [String],
+      default: [],
+      trim: true
+    },
+    
+    description: {
+      type: String,
+      trim: true,
+      default: ""
     },
     
     price: {
@@ -58,7 +78,7 @@ const roomSchema = new mongoose.Schema(
       min: 0
     },
     
-    countRoom: {
+    quantity: {
       type: Number,
       required: true,
       min: 1,

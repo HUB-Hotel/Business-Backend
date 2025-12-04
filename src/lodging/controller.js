@@ -6,6 +6,9 @@ const mongoose = require("mongoose");
 const getLodgings = async (req, res) => {
   try {
     const result = await lodgingService.getLodgings(req.user.id);
+    if (!result) {
+      return res.status(200).json(successResponse(null, "등록된 숙소가 없습니다.", 200));
+    }
     return res.status(200).json(successResponse(result, "SUCCESS", 200));
   } catch (error) {
     if (error.message === "BUSINESS_NOT_FOUND") {
@@ -51,7 +54,15 @@ const createLodging = async (req, res) => {
       amenityDetail,
       minPrice,
       lat,
-      lng
+      lng,
+      phoneNumber,
+      email,
+      website,
+      checkInTime,
+      checkOutTime,
+      city,
+      policies,
+      amenities
     } = req.body;
 
     // 필수 필드 검증
@@ -101,13 +112,27 @@ const createLodging = async (req, res) => {
       amenityDetail,
       minPrice,
       lat,
-      lng
+      lng,
+      phoneNumber,
+      email,
+      website,
+      checkInTime,
+      checkOutTime,
+      city,
+      policies,
+      amenities
     }, req.user.id);
 
     return res.status(201).json(successResponse(result, "숙소가 생성되었습니다.", 201));
   } catch (error) {
     if (error.message === "BUSINESS_NOT_FOUND") {
       return res.status(404).json(errorResponse("사업자 정보를 찾을 수 없습니다.", 404));
+    }
+    if (error.message === "LODGING_ALREADY_EXISTS") {
+      return res.status(400).json(errorResponse("이미 등록된 숙소가 있습니다. 사업자당 하나의 숙소만 등록할 수 있습니다.", 400));
+    }
+    if (error.message === "BUSINESS_INFO_MISSING") {
+      return res.status(400).json(errorResponse("사업자 정보가 없습니다.", 400));
     }
     if (error.message.includes("좌표 변환 실패") || error.message.includes("주소 또는 좌표가 필요")) {
       return res.status(400).json(errorResponse(error.message, 400));
@@ -136,7 +161,15 @@ const updateLodging = async (req, res) => {
       amenityDetail,
       minPrice,
       lat,
-      lng
+      lng,
+      phoneNumber,
+      email,
+      website,
+      checkInTime,
+      checkOutTime,
+      city,
+      policies,
+      amenities
     } = req.body;
 
     // 유효성 검증
@@ -175,7 +208,15 @@ const updateLodging = async (req, res) => {
       amenityDetail,
       minPrice,
       lat,
-      lng
+      lng,
+      phoneNumber,
+      email,
+      website,
+      checkInTime,
+      checkOutTime,
+      city,
+      policies,
+      amenities
     }, req.user.id);
 
     return res.status(200).json(successResponse(result, "숙소가 수정되었습니다.", 200));
@@ -216,11 +257,34 @@ const deleteLodging = async (req, res) => {
   }
 };
 
+// 호텔 이미지 수정
+const updateLodgingImages = async (req, res) => {
+  try {
+    const { images } = req.body;
+
+    if (!images || !Array.isArray(images)) {
+      return res.status(400).json(errorResponse("images 배열이 필요합니다.", 400));
+    }
+
+    const result = await lodgingService.updateLodgingImages(req.user.id, images);
+    return res.status(200).json(successResponse(result, "이미지가 수정되었습니다.", 200));
+  } catch (error) {
+    if (error.message === "BUSINESS_NOT_FOUND") {
+      return res.status(404).json(errorResponse("사업자 정보를 찾을 수 없습니다.", 404));
+    }
+    if (error.message === "LODGING_NOT_FOUND") {
+      return res.status(404).json(errorResponse("숙소를 찾을 수 없습니다.", 404));
+    }
+    return res.status(500).json(errorResponse("서버 오류", 500, error.message));
+  }
+};
+
 module.exports = {
   getLodgings,
   getLodgingById,
   createLodging,
   updateLodging,
-  deleteLodging
+  deleteLodging,
+  updateLodgingImages
 };
 

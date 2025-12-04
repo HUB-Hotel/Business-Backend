@@ -1,26 +1,26 @@
 const Amenity = require("./model");
 const Lodging = require("../lodging/model");
-const Business = require("../auth/business");
+const BusinessUser = require("../auth/model");
 
 // 편의시설 생성/수정
 const createOrUpdateAmenity = async (amenityData, lodgingId, userId) => {
   const { amenity_name, amenity_detail } = amenityData;
 
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const lodging = await Lodging.findOne({
     _id: lodgingId,
-    business_id: business._id
+    businessId: user._id
   });
 
   if (!lodging) {
     throw new Error("LODGING_NOT_FOUND");
   }
 
-  let amenity = await Amenity.findById(lodging.amenity_id);
+  let amenity = await Amenity.findById(lodging.amenityId);
   
   if (amenity) {
     amenity.amenity_name = amenity_name;
@@ -32,7 +32,7 @@ const createOrUpdateAmenity = async (amenityData, lodgingId, userId) => {
       amenity_detail: amenity_detail || ""
     });
     
-    lodging.amenity_id = amenity._id;
+    lodging.amenityId = amenity._id;
     await lodging.save();
   }
 
@@ -41,25 +41,25 @@ const createOrUpdateAmenity = async (amenityData, lodgingId, userId) => {
 
 // 숙소별 편의시설 조회
 const getAmenityByLodging = async (lodgingId, userId) => {
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const lodging = await Lodging.findOne({
     _id: lodgingId,
-    business_id: business._id
+    businessId: user._id
   });
 
   if (!lodging) {
     throw new Error("LODGING_NOT_FOUND");
   }
 
-  if (!lodging.amenity_id) {
+  if (!lodging.amenityId) {
     return null;
   }
 
-  const amenity = await Amenity.findById(lodging.amenity_id);
+  const amenity = await Amenity.findById(lodging.amenityId);
   return amenity;
 };
 
@@ -67,14 +67,14 @@ const getAmenityByLodging = async (lodgingId, userId) => {
 const updateAmenity = async (amenityId, amenityData, userId) => {
   const { amenity_name, amenity_detail } = amenityData;
 
-  const business = await Business.findOne({ loginId: userId });
-  if (!business) {
+  const user = await BusinessUser.findById(userId);
+  if (!user || user.role !== 'business') {
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
   const lodging = await Lodging.findOne({
-    amenity_id: amenityId,
-    business_id: business._id
+    amenityId: amenityId,
+    userId: user._id
   });
 
   if (!lodging) {
