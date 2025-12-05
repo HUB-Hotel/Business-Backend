@@ -13,7 +13,7 @@ const amenitySchema = new mongoose.Schema(
     
     // 편의시설 옵션들
     bbqGrill: {
-      type: Boolean,ㅇㅇ
+      type: Boolean,
       default: false
     },
     netflix: {
