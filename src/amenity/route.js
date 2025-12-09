@@ -15,13 +15,13 @@ const { authenticateToken, requireBusiness } = require("../common/authMiddleware
 router.use(authenticateToken);
 router.use(requireBusiness);
 
-// POST /api/amenities → 편의시설 생성/수정
+// POST /api/business/amenities → 편의시설 생성/수정
 router.post("/", createOrUpdateAmenity);
 
-// GET /api/amenities/lodging/:lodgingId → 숙소별 편의시설 조회
+// GET /api/business/amenities/lodging/:lodgingId → 숙소별 편의시설 조회
 router.get("/lodging/:lodgingId", getAmenityByLodging);
 
-// PUT /api/amenities/:id → 편의시설 수정
+// PUT /api/business/amenities/:id → 편의시설 수정
 router.put("/:id", updateAmenity);
 
 module.exports = router;

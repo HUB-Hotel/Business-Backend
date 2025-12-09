@@ -36,15 +36,15 @@ const lodgingSchema = new mongoose.Schema(
       min: 0
     },
     
-    // 🗺️ 지도 좌표
+    // 🗺️ 지도 좌표 (주소가 있으면 자동 변환, 없으면 선택사항)
     lat: {
       type: Number,
-      required: true
+      required: false
     },
     
     lng: {
       type: Number,
-      required: true
+      required: false
     },
     
     description: {

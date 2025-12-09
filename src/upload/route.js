@@ -10,10 +10,10 @@ const {
 } = require("./controller");
 const { authenticateToken, requireBusiness } = require("../common/authMiddleware");
 
-// GET /api/upload/ping → Ping
+// GET /api/business/upload/ping → Ping
 router.get('/ping', ping);
 
-// POST /api/upload/presign → Presign URL 생성 (로그인 필요, 사업자 권한 필요)
+// POST /api/business/upload/presign → Presign URL 생성 (로그인 필요, 사업자 권한 필요)
 router.post('/presign', authenticateToken, requireBusiness, generatePresignUrl);
 
 module.exports = router;

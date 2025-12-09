@@ -44,10 +44,10 @@ app.use("/api/business/hotel", lodgingRoutes);
 app.use("/api/business/rooms", roomRoutes);
 app.use("/api/business/bookings", bookingRoutes);  
 app.use("/api/business/stats", statsRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/amenities", amenityRoutes);
-app.use("/api/notices", noticeRoutes);
-app.use("/api/pictures", pictureRoutes);
+app.use("/api/business/upload", uploadRoutes);
+app.use("/api/business/amenities", amenityRoutes);
+app.use("/api/business/notices", noticeRoutes);
+app.use("/api/business/pictures", pictureRoutes);
 app.use("/api/business/reviews", reviewRoutes);
 
 // 404 핸들러

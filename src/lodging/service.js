@@ -207,20 +207,19 @@ const createLodging = async (lodgingData, userId) => {
     imagesArray = [images];
   }
 
-  // 주소를 좌표로 변환 (lat, lng가 제공되지 않은 경우)
+  // 주소를 좌표로 변환 (주소가 있고 lat, lng가 제공되지 않은 경우에만)
   let coordinates = { lat, lng };
-  if (!lat || !lng) {
-    if (!address) {
-      throw new Error("주소 또는 좌표가 필요합니다.");
-    }
+  if ((!lat || !lng) && address && address.trim().length > 0) {
     try {
       coordinates = await addressToCoordinates(address);
     } catch (error) {
-      throw new Error(`좌표 변환 실패: ${error.message}`);
+      // 좌표 변환 실패해도 에러를 발생시키지 않고 스킵
+      console.warn(`주소 좌표 변환 실패 (스킵): ${address} - ${error.message}`);
+      coordinates = { lat: undefined, lng: undefined };
     }
   }
 
-  const lodging = await Lodging.create({
+  const lodgingDataToCreate = {
     businessId: user._id,
     businessName: user.businessName,
     lodgingName: lodgingName,
@@ -233,8 +232,6 @@ const createLodging = async (lodgingData, userId) => {
     hashtag: hashtagArray,
     amenityId: amenity ? amenity._id : null,
     minPrice: minPrice !== undefined ? minPrice : undefined,
-    lat: coordinates.lat,
-    lng: coordinates.lng,
     reviewCount: 0, // 기본값 0, 리뷰 생성 시 자동으로 증가
     phoneNumber: phoneNumber || user.phoneNumber || "",
     email: email || user.email || "",
@@ -242,7 +239,15 @@ const createLodging = async (lodgingData, userId) => {
     checkInTime: checkInTime || "15:00",
     checkOutTime: checkOutTime || "11:00",
     city: city || ""
-  });
+  };
+
+  // 좌표가 있는 경우에만 추가
+  if (coordinates.lat !== undefined && coordinates.lng !== undefined) {
+    lodgingDataToCreate.lat = coordinates.lat;
+    lodgingDataToCreate.lng = coordinates.lng;
+  }
+
+  const lodging = await Lodging.create(lodgingDataToCreate);
 
   // lodgingId 설정 (amenity가 생성된 경우)
   if (amenity) {
@@ -375,15 +380,17 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
       updates.lat = lat;
       updates.lng = lng;
     } else {
-      // 주소를 기반으로 좌표 변환
+      // 주소를 기반으로 좌표 변환 (주소가 있는 경우에만)
       const addressToUse = address !== undefined ? address : lodging.address;
-      if (addressToUse) {
+      if (addressToUse && addressToUse.trim().length > 0) {
         try {
           const coordinates = await addressToCoordinates(addressToUse);
           updates.lat = coordinates.lat;
           updates.lng = coordinates.lng;
         } catch (error) {
-          throw new Error(`좌표 변환 실패: ${error.message}`);
+          // 좌표 변환 실패해도 에러를 발생시키지 않고 스킵
+          console.warn(`주소 좌표 변환 실패 (스킵): ${addressToUse} - ${error.message}`);
+          // 좌표를 업데이트하지 않음 (기존 값 유지 또는 undefined)
         }
       }
     }
