@@ -3,6 +3,7 @@ const Amenity = require("../amenity/model");
 const Booking = require("../booking/model");
 const Room = require("../room/model");
 const BusinessUser = require("../auth/model");
+const Category = require("../category/model"); 
 const { addressToCoordinates } = require("../common/kakaoMap");
 
 // 숙소 목록 조회
@@ -14,6 +15,7 @@ const getLodgings = async (userId) => {
 
   const lodging = await Lodging.findOne({ businessId: user._id })
     .populate('amenityId')
+    .populate('categoryId')
     .sort({ createdAt: -1 })
     .lean();
 
@@ -91,9 +93,15 @@ const getLodgings = async (userId) => {
     avgRating: Math.round(avgRating * 10) / 10,
     amenities,
     todayBookings,
-    newMembers: 0, // TODO: 필요시 구현
+    newMembers: 0, // 미구현: 신규 회원 수 통계
     rating: lodging.rating,
-    category: lodging.category,
+    categoryId: lodging.categoryId?._id || lodging.categoryId,
+    category: lodging.categoryId ? {
+      id: lodging.categoryId._id,
+      name: lodging.categoryId.name,
+      code: lodging.categoryId.code,
+      description: lodging.categoryId.description
+    } : null,
     minPrice: lodging.minPrice,
     reviewCount: lodging.reviewCount || 0
   };
@@ -111,6 +119,7 @@ const getLodgingById = async (lodgingId, userId) => {
     businessId: user._id
   })
     .populate('amenityId')
+    .populate('categoryId')
     .lean();
 
   if (!lodging) {
@@ -130,7 +139,7 @@ const createLodging = async (lodgingData, userId) => {
     description,
     images,
     country,
-    category,
+    categoryId,
     hashtag,
     bbqGrill,
     netflix,
@@ -228,7 +237,7 @@ const createLodging = async (lodgingData, userId) => {
     description,
     images: imagesArray,
     country,
-    category,
+    categoryId,
     hashtag: hashtagArray,
     amenityId: amenity ? amenity._id : null,
     minPrice: minPrice !== undefined ? minPrice : undefined,
@@ -256,7 +265,8 @@ const createLodging = async (lodgingData, userId) => {
   }
 
   const createdLodging = await Lodging.findById(lodging._id)
-    .populate('amenityId');
+    .populate('amenityId')
+    .populate('categoryId');
 
   return createdLodging;
 };
@@ -284,7 +294,7 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
     description,
     images,
     country,
-    category,
+    categoryId,
     hashtag,
     bbqGrill,
     netflix,
@@ -329,7 +339,7 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
     }
   }
   if (country !== undefined) updates.country = country;
-  if (category !== undefined) updates.category = category;
+  if (categoryId !== undefined) updates.categoryId = categoryId;
   if (hashtag !== undefined) {
     if (Array.isArray(hashtag)) {
       updates.hashtag = hashtag;
@@ -406,7 +416,8 @@ const updateLodging = async (lodgingId, lodgingData, userId) => {
     { $set: updates },
     { new: true, runValidators: true }
   )
-    .populate('amenityId');
+    .populate('amenityId')
+    .populate('categoryId');
 
   return updated;
 };

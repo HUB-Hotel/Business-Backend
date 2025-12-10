@@ -2,7 +2,9 @@
 
 ## 기본 정보
 - Base URL: `/api/business`
-- 인증 방식: Cookie 기반 (token 쿠키)
+- 인증 방식: Bearer Token (Authorization 헤더) 또는 Cookie 기반 (token 쿠키)
+  - Authorization 헤더: `Authorization: Bearer <token>` (우선순위)
+  - Cookie: `token` 쿠키
 - 응답 형식: JSON
 
 ### 공통 응답 형식
@@ -55,7 +57,29 @@
   "password": "string (필수)"
 }
 ```
-- **응답:** 200 OK (token 쿠키 설정)
+- **응답:** 200 OK
+```json
+{
+  "data": {
+    "token": "string (JWT 토큰)",
+    "business": {
+      "id": "ObjectId",
+      "name": "string",
+      "email": "string",
+      "phoneNumber": "string",
+      "businessNumber": "string",
+      "createdAt": "Date"
+    },
+    "message": "string"
+  },
+  "message": "로그인 성공",
+  "resultCode": 200
+}
+```
+- **참고:** 
+  - 토큰은 응답 body의 `data.token`에 포함됩니다
+  - 동시에 `token` 쿠키에도 설정됩니다
+  - 이후 API 호출 시 Authorization 헤더(`Bearer <token>`) 또는 쿠키로 인증 가능
 
 ### 1.3 내 정보 조회
 - **엔드포인트:** `GET /api/business/auth/me`
@@ -156,7 +180,13 @@
       "description": "string",
       "images": ["string"],
       "country": "string",
-      "category": "호텔" | "모텔" | "리조트" | "게스트하우스" | "에어비앤비",
+      "categoryId": "ObjectId",
+      "category": {
+        "id": "ObjectId",
+        "name": "string",
+        "code": "string",
+        "description": "string"
+      },
       "hashtag": ["string"],
       "phoneNumber": "string",
       "email": "string",
@@ -192,7 +222,7 @@
   "description": "string (필수)",
   "images": ["string"] (필수, 최소 1개),
   "country": "string (필수, 최대 50자)",
-  "category": "호텔" | "모텔" | "리조트" | "게스트하우스" | "에어비앤비" (필수),
+  "categoryId": "ObjectId (필수)",
   "hashtag": ["string"] (선택),
   "bbqGrill": "boolean (선택)",
   "netflix": "boolean (선택)",
@@ -602,6 +632,49 @@
 ### 10.1 대시보드 통계
 - **엔드포인트:** `GET /api/business/stats/dashboard`
 - **인증:** 필요 (사업자)
+- **응답:** 200 OK
+```json
+{
+  "data": {
+    "hotel": {
+      "todayBookings": "number (필수, 오늘 생성된 예약 수)",
+      "totalRevenue": "number (필수, 전체 누적 매출)",
+      "totalRooms": "number (필수, 전체 객실 수)",
+      "activeRooms": "number (선택, 현재 체크인된 예약 수)",
+      "newMembers": "number (필수, 이번 달 신규 회원 수)",
+      "newUsers": "number (선택, newMembers와 동일)",
+      "today": {
+        "bookings": "number (선택, todayBookings와 동일)",
+        "revenue": "number (선택, 오늘의 매출)"
+      }
+    },
+    "chartData": {
+      "labels": ["string"] (필수, 최소 1개, 예: ["1월", "2월", "3월", "4월", "5월", "6월"]),
+      "revenue": ["number"] (필수, labels와 같은 길이, 월별 매출),
+      "bookings": ["number"] (필수, labels와 같은 길이, 월별 예약 수)
+    },
+    "recentBookings": [
+      {
+        "_id": "ObjectId (필수)",
+        "id": "string (선택, _id를 문자열로 변환)",
+        "bookingNumber": "string (선택)",
+        "lodgingName": "string (필수)",
+        "hotelName": "string (선택, lodgingName과 동일)",
+        "guest": {
+          "name": "string (필수)"
+        },
+        "guestName": "string (선택, guest.name과 동일)",
+        "user": {
+          "name": "string (선택, guest.name과 동일)"
+        },
+        "status": "string (필수, pending|confirmed|cancelled|completed)"
+      }
+    ]
+  },
+  "message": "SUCCESS",
+  "resultCode": 200
+}
+```
 
 ### 10.2 통계 조회 (쿼리 파라미터 기반)
 - **엔드포인트:** `GET /api/business/stats`
@@ -690,8 +763,23 @@
 
 모든 `/api/business/*` 엔드포인트는 기본적으로 인증이 필요합니다. (단, 명시적으로 "인증 불필요"로 표시된 엔드포인트 제외)
 
-- 인증 토큰은 쿠키의 `token` 필드로 전달됩니다.
+### 인증 토큰 전달 방법
+
+**방법 1: Authorization 헤더 (권장)**
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+**방법 2: Cookie**
+```
+Cookie: token=<your-jwt-token>
+```
+
+**우선순위:** Authorization 헤더가 쿠키보다 우선합니다. Authorization 헤더에 토큰이 있으면 쿠키는 무시됩니다.
+
+### 권한 체크
 - 사업자 권한이 필요한 엔드포인트는 `requireBusiness` 미들웨어를 사용합니다.
+- 관리자 권한이 필요한 엔드포인트는 `requireAdmin` 미들웨어를 사용합니다.
 
 ---
 
