@@ -15,13 +15,13 @@ const { authenticateToken, requireBusiness } = require("../common/authMiddleware
 router.use(authenticateToken);
 router.use(requireBusiness);
 
-// POST /api/notices → 공지사항 생성/수정
+// POST /api/business/notices → 공지사항 생성/수정
 router.post("/", createOrUpdateNotice);
 
-// GET /api/notices/room/:roomId → 객실별 공지사항 조회
+// GET /api/business/notices/room/:roomId → 객실별 공지사항 조회
 router.get("/room/:roomId", getNoticeByRoom);
 
-// PUT /api/notices/:id → 공지사항 수정
+// PUT /api/business/notices/:id → 공지사항 수정
 router.put("/:id", updateNotice);
 
 module.exports = router;

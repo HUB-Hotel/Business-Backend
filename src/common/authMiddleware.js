@@ -8,15 +8,19 @@ const { errorResponse } = require("./response");
 const authenticateToken = async (req, res, next) => {
   let token = null;
 
-  // 1️⃣ Authorization 헤더에서 추출
-  const h = req.headers.authorization || '';
-  if (h.toLowerCase().startsWith('bearer')) token = h.slice(7).trim();
+  // 1️⃣ Authorization 헤더에서 Bearer Token 추출 (우선순위)
+  const authHeader = req.headers.authorization || '';
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    token = authHeader.slice(7).trim();
+  }
 
-  // 2️⃣ 쿠키에서 추출
-  if (req.cookies?.token) token = req.cookies.token;
+  // 2️⃣ Authorization 헤더에 토큰이 없으면 쿠키에서 추출
+  if (!token && req.cookies?.token) {
+    token = req.cookies.token;
+  }
 
   if (!token) {
-    return res.status(401).json(errorResponse("NO_TOKEN_PROVIDED", 401));
+    return res.status(401).json(errorResponse("인증 토큰이 필요합니다. Authorization 헤더 또는 쿠키에 토큰을 포함해주세요.", 401));
   }
 
   try {

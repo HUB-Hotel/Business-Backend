@@ -48,7 +48,7 @@ const createLodging = async (req, res) => {
       description,
       images,
       country,
-      category,
+      categoryId,
       hashtag,
       bbqGrill,
       netflix,
@@ -73,7 +73,7 @@ const createLodging = async (req, res) => {
     } = req.body;
 
     // 필수 필드 검증
-    if (!lodgingName || !address || !rating || !description || !images || !country || !category) {
+    if (!lodgingName || !address || !rating || !description || !images || !country || !categoryId) {
       return res.status(400).json(errorResponse("필수 필드가 누락되었습니다.", 400));
     }
 
@@ -87,10 +87,9 @@ const createLodging = async (req, res) => {
       return res.status(400).json(errorResponse("등급은 1~5 사이의 값이어야 합니다.", 400));
     }
 
-    // category 검증
-    const validCategories = ["호텔", "모텔", "리조트", "게스트하우스", "에어비앤비"];
-    if (!validCategories.includes(category)) {
-      return res.status(400).json(errorResponse(`카테고리는 다음 중 하나여야 합니다: ${validCategories.join(", ")}`, 400));
+    // categoryId 검증
+    if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+      return res.status(400).json(errorResponse("잘못된 categoryId 형식입니다.", 400));
     }
 
     // minPrice 검증
@@ -113,7 +112,7 @@ const createLodging = async (req, res) => {
       description,
       images,
       country,
-      category,
+      categoryId,
       hashtag,
       bbqGrill,
       netflix,
@@ -169,7 +168,7 @@ const updateLodging = async (req, res) => {
       description,
       images,
       country,
-      category,
+      categoryId,
       hashtag,
       bbqGrill,
       netflix,
@@ -198,9 +197,9 @@ const updateLodging = async (req, res) => {
       return res.status(400).json(errorResponse("등급은 1~5 사이의 값이어야 합니다.", 400));
     }
 
-    const validCategories = ["호텔", "모텔", "리조트", "게스트하우스", "에어비앤비"];
-    if (category !== undefined && !validCategories.includes(category)) {
-      return res.status(400).json(errorResponse(`카테고리는 다음 중 하나여야 합니다: ${validCategories.join(", ")}`, 400));
+    // categoryId 검증 (제공된 경우)
+    if (categoryId !== undefined && !mongoose.Types.ObjectId.isValid(categoryId)) {
+      return res.status(400).json(errorResponse("잘못된 categoryId 형식입니다.", 400));
     }
 
     // minPrice 검증
@@ -223,7 +222,7 @@ const updateLodging = async (req, res) => {
       description,
       images,
       country,
-      category,
+      categoryId,
       hashtag,
       bbqGrill,
       netflix,

@@ -18,17 +18,20 @@ const { authenticateToken, requireBusiness } = require("../common/authMiddleware
 router.use(authenticateToken);
 router.use(requireBusiness);
 
-// GET /api/lodgings → 숙소 목록 조회
+// GET /api/business/hotel → 숙소 목록 조회
 router.get("/", getLodgings);
 
-// GET /api/lodgings/:id → 숙소 상세 조회
+// GET /api/business/hotel/:id → 숙소 상세 조회
 router.get("/:id", getLodgingById);
 
-// POST /api/lodgings → 숙소 생성
+// POST /api/business/hotel → 숙소 생성
 router.post("/", createLodging);
 
 // PUT /api/business/hotel/images → 호텔 이미지 수정
 router.put("/images", updateLodgingImages);
+
+// PUT /api/business/hotel → 숙소 생성 (프론트 호환성)
+router.put("/", createLodging);
 
 // PUT /api/business/hotel/:id → 숙소 수정
 router.put("/:id", updateLodging);

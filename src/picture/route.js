@@ -15,13 +15,13 @@ const { authenticateToken, requireBusiness } = require("../common/authMiddleware
 router.use(authenticateToken);
 router.use(requireBusiness);
 
-// GET /api/pictures/room/:roomId → 객실별 사진 목록 조회
+// GET /api/business/pictures/room/:roomId → 객실별 사진 목록 조회
 router.get("/room/:roomId", getPicturesByRoom);
 
-// POST /api/pictures → 사진 추가
+// POST /api/business/pictures → 사진 추가
 router.post("/", createPicture);
 
-// DELETE /api/pictures/:id → 사진 삭제
+// DELETE /api/business/pictures/:id → 사진 삭제
 router.delete("/:id", deletePicture);
 
 module.exports = router;

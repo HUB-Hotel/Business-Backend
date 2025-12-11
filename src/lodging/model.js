@@ -36,15 +36,15 @@ const lodgingSchema = new mongoose.Schema(
       min: 0
     },
     
-    // 🗺️ 지도 좌표
+    // 🗺️ 지도 좌표 (주소가 있으면 자동 변환, 없으면 선택사항)
     lat: {
       type: Number,
-      required: true
+      required: false
     },
     
     lng: {
       type: Number,
-      required: true
+      required: false
     },
     
     description: {
@@ -68,10 +68,11 @@ const lodgingSchema = new mongoose.Schema(
     },
     
     // 🏠 숙소 종류
-    category: {
-      type: String,
-      enum: ["호텔", "모텔", "리조트", "게스트하우스", "에어비앤비"],
-      required: true
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      required: true,
+      index: true
     },
     
     bookingId: {
@@ -153,7 +154,7 @@ const lodgingSchema = new mongoose.Schema(
 // 복합 인덱스
 lodgingSchema.index({ businessId: 1, createdAt: -1 });
 lodgingSchema.index({ country: 1 });
-lodgingSchema.index({ category: 1 });
+lodgingSchema.index({ categoryId: 1 });
 lodgingSchema.index({ rating: -1 });
 lodgingSchema.index({ amenityId: 1 });
 // 지도 좌표를 위한 2dsphere 인덱스 (지도 API 쿼리 최적화)

@@ -97,6 +97,20 @@ const getDashboardStats = async (userId) => {
 
   const totalRevenue = allPayments.reduce((sum, p) => sum + (p.paid || 0), 0);
 
+  // 오늘의 매출 계산
+  const todayBookingsForRevenue = await Booking.find({
+    businessUserId: user._id,
+    bookingStatus: { $in: ['confirmed', 'completed'] },
+    createdAt: { $gte: today, $lt: tomorrow }
+  }).select('_id').lean();
+
+  const todayBookingIdsForRevenue = todayBookingsForRevenue.map(b => b._id);
+  const todayPayments = await Payment.find({
+    bookingId: { $in: todayBookingIdsForRevenue }
+  }).lean();
+
+  const todayRevenue = todayPayments.reduce((sum, p) => sum + (p.paid || 0), 0);
+
   // 매출 통계 (이번 달)
   const thisMonthBookings = await Booking.find({
     businessUserId: user._id,
@@ -160,6 +174,22 @@ const getDashboardStats = async (userId) => {
   sixMonthsAgo.setDate(1);
   sixMonthsAgo.setHours(0, 0, 0, 0);
 
+  // 최근 6개월의 모든 월 목록 생성 (예약이 없는 월도 포함)
+  const allMonths = [];
+  const currentDate = new Date();
+  currentDate.setDate(1);
+  currentDate.setHours(0, 0, 0, 0);
+  
+  for (let i = 5; i >= 0; i--) {
+    const monthDate = new Date(currentDate);
+    monthDate.setMonth(monthDate.getMonth() - i);
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth() + 1;
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const monthLabel = `${month}월`;
+    allMonths.push({ key: monthKey, label: monthLabel });
+  }
+
   const monthlyStats = await Booking.aggregate([
     {
       $match: {
@@ -178,17 +208,46 @@ const getDashboardStats = async (userId) => {
     { $sort: { _id: 1 } }
   ]);
 
-  // 각 월별 매출 계산
+  // 월별 데이터를 Map으로 변환 (빠른 조회를 위해)
+  const monthlyStatsMap = new Map();
+  monthlyStats.forEach(stat => {
+    monthlyStatsMap.set(stat._id, stat);
+  });
+
+  // 각 월별 매출 계산 (모든 월 포함)
   const revenueTrend = await Promise.all(
-    monthlyStats.map(async (month) => {
+    allMonths.map(async (monthInfo) => {
+      const monthStat = monthlyStatsMap.get(monthInfo.key);
+      
+      if (!monthStat || !monthStat.bookingIds || monthStat.bookingIds.length === 0) {
+        // 예약이 없는 월
+        return {
+          month: monthInfo.key,
+          monthLabel: monthInfo.label,
+          revenue: 0,
+          bookings: 0
+        };
+      }
+
+      // 예약이 있는 월: 매출 계산
       const payments = await Payment.find({
-        bookingId: { $in: month.bookingIds }
+        bookingId: { $in: monthStat.bookingIds }
       }).lean();
       const revenue = payments.reduce((sum, p) => sum + (p.paid || 0), 0);
+      
+      // bookingCount를 명시적으로 확인 (0도 유효한 값)
+      // bookingIds 배열의 길이를 직접 사용하는 것이 가장 정확함
+      const bookingCount = monthStat.bookingIds && Array.isArray(monthStat.bookingIds)
+        ? monthStat.bookingIds.length
+        : (monthStat.bookingCount !== undefined && monthStat.bookingCount !== null
+          ? Number(monthStat.bookingCount)
+          : 0);
+      
       return {
-        month: month._id,
+        month: monthInfo.key,
+        monthLabel: monthInfo.label,
         revenue: revenue,
-        bookings: month.bookingCount
+        bookings: bookingCount
       };
     })
   );
@@ -199,38 +258,79 @@ const getDashboardStats = async (userId) => {
   })
     .populate('roomId', 'name lodgingId')
     .populate('userId', 'name email')
-    .sort({ bookingDate: -1 })
+    .sort({ createdAt: -1 })
     .limit(10)
     .lean();
 
-  // 최근 예약 정보 포맷팅
-  const formattedRecentBookings = recentBookings.map(booking => ({
-    bookingId: booking._id,
-    roomName: booking.roomId?.roomName || booking.roomId?.name || 'Unknown',
-    userName: booking.userId?.name || 'Unknown',
-    userEmail: booking.userId?.email || '',
-    checkinDate: booking.checkinDate,
-    checkoutDate: booking.checkoutDate,
-    bookingDate: booking.bookingDate,
-    bookingStatus: booking.bookingStatus,
-    adult: booking.adult,
-    child: booking.child
-  }));
+  // lodging ID 목록 수집 (중복 제거)
+  const recentLodgingIdStrings = recentBookings
+    .map(b => {
+      const lodgingId = b.roomId?.lodgingId;
+      if (!lodgingId) return null;
+      // ObjectId 객체이거나 문자열일 수 있으므로 toString()으로 통일
+      return lodgingId.toString ? lodgingId.toString() : String(lodgingId);
+    })
+    .filter(id => id !== null);
+  
+  // 중복 제거
+  const uniqueLodgingIdStrings = [...new Set(recentLodgingIdStrings)];
+  
+  // lodging 정보 일괄 조회 (문자열 ID로도 조회 가능)
+  const lodgings = uniqueLodgingIdStrings.length > 0
+    ? await Lodging.find({ _id: { $in: uniqueLodgingIdStrings } })
+        .select('_id lodgingName')
+        .lean()
+    : [];
+  
+  const lodgingMap = new Map(lodgings.map(l => [l._id.toString(), l.lodgingName]));
 
-  // 호텔 정보 조회 (getLodgings와 동일한 형식)
-  const lodging = await Lodging.findOne({ businessId: user._id }).lean();
-  const hotelInfo = lodging ? await require("../lodging/service").getLodgings(userId) : null;
+  // 최근 예약 정보 포맷팅 (프론트엔드 요구 형식)
+  const formattedRecentBookings = recentBookings.map((booking) => {
+    const lodgingId = booking.roomId?.lodgingId?.toString();
+    const lodgingName = lodgingId ? (lodgingMap.get(lodgingId) || 'Unknown') : 'Unknown';
+    const guestName = booking.userId?.name || 'Unknown';
 
-  // chartData 형식 변환
+    return {
+      _id: booking._id,
+      id: booking._id.toString(),
+      bookingNumber: booking.bookingNumber || null,
+      lodgingName: lodgingName,
+      hotelName: lodgingName,
+      guest: {
+        name: guestName
+      },
+      guestName: guestName,
+      user: {
+        name: guestName
+      },
+      status: booking.bookingStatus || 'pending'
+    };
+  });
+
+  // chartData 형식 변환 (한글 월 라벨)
   const chartData = {
-    labels: revenueTrend.map(item => item.month),
+    labels: revenueTrend.map(item => item.monthLabel),
     revenue: revenueTrend.map(item => item.revenue),
     bookings: revenueTrend.map(item => item.bookings)
   };
 
+  // hotel 객체 구성 (프론트엔드 요구 형식)
+  const hotel = {
+    todayBookings: todayBookings,
+    totalRevenue: totalRevenue,
+    totalRooms: totalRooms,
+    activeRooms: activeRooms,
+    newMembers: newMembers,
+    newUsers: newMembers, // newMembers와 동일
+    today: {
+      bookings: todayBookings,
+      revenue: todayRevenue
+    }
+  };
+
   // 프론트엔드 요구사항에 맞게 응답 형식 변환
   return {
-    hotel: hotelInfo,
+    hotel: hotel,
     recentBookings: formattedRecentBookings,
     chartData: chartData
   };
@@ -331,7 +431,8 @@ const getRevenueStats = async (userId, period = 'month') => {
     {
       $group: {
         _id: { $dateToString: { format: period === 'year' ? '%Y-%m' : '%Y-%m-%d', date: '$createdAt' } },
-        bookingIds: { $push: '$_id' }
+        bookingIds: { $push: '$_id' },
+        bookingCount: { $sum: 1 }
       }
     },
     { $sort: { _id: 1 } }
@@ -343,9 +444,18 @@ const getRevenueStats = async (userId, period = 'month') => {
         bookingId: { $in: day.bookingIds }
       }).lean();
       const revenue = payments.reduce((sum, p) => sum + (p.paid || 0), 0);
+      
+      // bookingIds 배열의 길이를 직접 사용 (가장 정확함)
+      const bookingCount = day.bookingIds && Array.isArray(day.bookingIds)
+        ? day.bookingIds.length
+        : (day.bookingCount !== undefined && day.bookingCount !== null
+          ? Number(day.bookingCount)
+          : 0);
+      
       return {
         date: day._id,
-        revenue
+        revenue,
+        bookings: bookingCount
       };
     })
   );
@@ -354,17 +464,7 @@ const getRevenueStats = async (userId, period = 'month') => {
   return {
     labels: dailyRevenueWithAmount.map(item => item.date),
     revenue: dailyRevenueWithAmount.map(item => item.revenue),
-    bookings: dailyRevenueWithAmount.map(item => {
-      // 해당 날짜의 예약 수 계산
-      const dayBookings = bookings.filter(b => {
-        const bookingDate = new Date(b.createdAt);
-        const dateStr = period === 'year' 
-          ? `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}`
-          : `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}-${String(bookingDate.getDate()).padStart(2, '0')}`;
-        return dateStr === item.date;
-      });
-      return dayBookings.length;
-    })
+    bookings: dailyRevenueWithAmount.map(item => item.bookings)
   };
 };
 

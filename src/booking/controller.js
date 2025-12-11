@@ -6,9 +6,9 @@ const mongoose = require("mongoose");
 // 예약 생성
 const createBooking = async (req, res) => {
   try {
-    // 프론트엔드는 checkIn, checkOut을 보내지만, 서비스는 checkin_date, checkout_date를 기대
-    const checkin_date = req.body.checkIn || req.body.checkin_date;
-    const checkout_date = req.body.checkOut || req.body.checkout_date;
+    // 프론트엔드는 checkIn, checkOut, checkinDate, checkoutDate 등 다양한 형식을 보낼 수 있음
+    const checkin_date = req.body.checkIn || req.body.checkin_date || req.body.checkinDate;
+    const checkout_date = req.body.checkOut || req.body.checkout_date || req.body.checkoutDate;
     const room_id = req.body.roomId || req.body.room_id;
     const { adult, child } = req.body;
     const user_id = req.user.id; // 로그인한 사용자의 ID 사용
